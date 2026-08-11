@@ -106,3 +106,15 @@ def test_a_running_job_is_never_swept(downloads):
 
     assert jobs._sweep(ttl_hours=1, max_bytes=1) == 0
     assert path.exists()
+
+
+def test_old_finished_metadata_is_pruned_even_when_files_are_kept(
+    downloads, monkeypatch
+):
+    job = jobs.Job(id="old", name="finished")
+    job.finished_at = time.time() - 2 * HOUR
+    jobs._jobs["old"] = job
+    monkeypatch.setattr(jobs, "JOB_METADATA_TTL_HOURS", 1)
+
+    assert jobs._sweep(ttl_hours=0, max_bytes=0) == 1
+    assert "old" not in jobs._jobs

@@ -55,6 +55,14 @@ _SWEEP_INTERVAL_SECONDS = 600
 # watched. A home connection has more room here than a datacenter one, but
 # it is still the thing that breaks first, so move it in small steps.
 DOWNLOAD_WORKERS = max(1, int(os.getenv("DOWNLOAD_WORKERS", "3")))
+# A completed job's files may live forever, but its in-memory progress record
+# should not. This is intentionally separate from file retention: keeping a
+# user's music does not require keeping every Python object forever.
+JOB_METADATA_TTL_HOURS = float(os.getenv("JOB_METADATA_TTL_HOURS", "168"))
+# 0 preserves the self-hosted "large discography" behaviour. Public profiles
+# set this explicitly so many callers cannot grow the executor queue without
+# bound.
+MAX_QUEUED_TRACKS = max(0, int(os.getenv("MAX_QUEUED_TRACKS", "0")))
 _executor = ThreadPoolExecutor(max_workers=DOWNLOAD_WORKERS)
 
 
@@ -78,6 +86,10 @@ class TrackState:
         }
 
 
+class QueueFullError(Exception):
+    """The process cannot accept another track without unbounded queue growth."""
+
+
 @dataclass
 class Job:
     id: str
@@ -92,6 +104,8 @@ class Job:
     visitor: str = ""
     tracks: dict[str, TrackState] = field(default_factory=dict)
     lock: threading.Lock = field(default_factory=threading.Lock)
+    created_at: float = field(default_factory=time.time)
+    finished_at: float | None = None
 
     @property
     def dir(self) -> Path:
@@ -120,15 +134,18 @@ class Job:
 
 
 _jobs: dict[str, Job] = {}
+_jobs_lock = threading.RLock()
 
 
 def get(job_id: str) -> Job | None:
-    return _jobs.get(job_id)
+    with _jobs_lock:
+        return _jobs.get(job_id)
 
 
 def live_counts() -> dict:
     """What the process is doing right now — for the admin dashboard."""
-    snapshot = list(_jobs.values())
+    with _jobs_lock:
+        snapshot = list(_jobs.values())
     running = [job for job in snapshot if not job.finished]
     return {
         "active_jobs": len(running),
@@ -145,7 +162,24 @@ def live_counts() -> dict:
 def active_count(owner: str) -> int:
     """How many of this client's jobs are still running."""
     # list() so a concurrent start() resizing the dict can't break iteration.
-    return sum(1 for job in list(_jobs.values()) if job.owner == owner and not job.finished)
+    with _jobs_lock:
+        snapshot = list(_jobs.values())
+    return sum(1 for job in snapshot if job.owner == owner and not job.finished)
+
+
+def queued_tracks() -> int:
+    """Number of tracks still queued or running in this process."""
+    with _jobs_lock:
+        snapshot = list(_jobs.values())
+    count = 0
+    for job in snapshot:
+        with job.lock:
+            count += sum(
+                1
+                for state in job.tracks.values()
+                if state.status not in ("done", "error")
+            )
+    return count
 
 
 _AUDIO_HOSTS = (
@@ -190,6 +224,8 @@ def _run_track(job: Job, state: TrackState) -> None:
             state.status = "done"
             state.progress = 1.0
             state.file_path = path
+            if all(s.status in ("done", "error") for s in job.tracks.values()):
+                job.finished_at = time.time()
         analytics.record(
             "track_done",
             visitor=job.visitor or None,
@@ -203,6 +239,8 @@ def _run_track(job: Job, state: TrackState) -> None:
         with job.lock:
             state.status = "error"
             state.error = str(exc)
+            if all(s.status in ("done", "error") for s in job.tracks.values()):
+                job.finished_at = time.time()
         analytics.record(
             "track_error",
             visitor=job.visitor or None,
@@ -222,7 +260,7 @@ def start(
     visitor: str = "",
 ) -> Job:
     job = Job(
-        id=uuid.uuid4().hex[:12],
+        id=uuid.uuid4().hex,
         name=name,
         quality=quality,
         owner=owner,
@@ -242,7 +280,14 @@ def start(
             n += 1
         used.add(stem.lower())
         job.tracks[track.id] = TrackState(track=track, filename=stem)
-    _jobs[job.id] = job
+    with _jobs_lock:
+        # Keep the capacity check and registry insert atomic. Without the
+        # shared lock, two simultaneous requests could both pass the check.
+        if MAX_QUEUED_TRACKS > 0 and queued_tracks() + len(job.tracks) > MAX_QUEUED_TRACKS:
+            raise QueueFullError(
+                f"The download queue is full ({MAX_QUEUED_TRACKS} tracks)."
+            )
+        _jobs[job.id] = job
     for state in job.tracks.values():
         _executor.submit(_run_track, job, state)
     return job
@@ -263,7 +308,24 @@ def _measure(path: Path) -> tuple[float, int] | None:
 
 def _evict(path: Path) -> None:
     shutil.rmtree(path, ignore_errors=True)
-    _jobs.pop(path.name, None)
+    with _jobs_lock:
+        _jobs.pop(path.name, None)
+
+
+def _prune_metadata(now: float | None = None) -> int:
+    """Drop old finished progress records without touching retained files."""
+    if JOB_METADATA_TTL_HOURS <= 0:
+        return 0
+    cutoff = (time.time() if now is None else now) - JOB_METADATA_TTL_HOURS * 3600
+    with _jobs_lock:
+        old = [
+            job_id
+            for job_id, job in _jobs.items()
+            if job.finished_at is not None and job.finished_at < cutoff
+        ]
+        for job_id in old:
+            _jobs.pop(job_id, None)
+    return len(old)
 
 
 def _sweep(
@@ -279,12 +341,12 @@ def _sweep(
     volume held over budget entirely by jobs in flight stays over — the
     concurrency and per-client caps are what bound that case.
     """
+    removed = _prune_metadata()
     if ttl_hours <= 0 and max_bytes <= 0:
-        return 0
+        return removed
     if not DOWNLOADS_DIR.exists():
-        return 0
+        return removed
     cutoff = time.time() - ttl_hours * 3600 if ttl_hours > 0 else None
-    removed = 0
     # (newest mtime, bytes, path) for everything that survived the TTL pass.
     survivors: list[tuple[float, int, Path]] = []
 

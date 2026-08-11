@@ -1,7 +1,9 @@
 # Unstream API — FastAPI + yt-dlp + ffmpeg
-FROM python:3.12-slim AS base
+# uv is a build-time dependency only; keeping it in a separate stage avoids
+# shipping its ~50 MB binary in the production image.
+FROM ghcr.io/astral-sh/uv:latest AS uv
 
-COPY --from=ghcr.io/astral-sh/uv:latest /uv /usr/local/bin/uv
+FROM python:3.12-slim AS runtime
 
 # ffmpeg for audio conversion, dumb-init for clean signal handling, gosu to
 # drop from root to PUID/PGID once the mounts have been handed over.
@@ -30,12 +32,17 @@ RUN set -eux; \
     rm /tmp/deno.zip; \
     deno --version
 
+# Install Python dependencies in a throwaway build stage. The final stage
+# copies only the resulting virtualenv, not uv or the lockfile tooling.
+FROM runtime AS builder
 WORKDIR /app
-
-# Deps first so this layer caches across code changes
+COPY --from=uv /uv /usr/local/bin/uv
 COPY pyproject.toml uv.lock ./
 RUN uv sync --frozen --no-dev
 
+FROM runtime
+WORKDIR /app
+COPY --from=builder /app/.venv /app/.venv
 COPY app ./app
 
 # /app/cache is created here rather than left to the volume: Docker seeds a

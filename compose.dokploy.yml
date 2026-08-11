@@ -14,7 +14,8 @@ services:
     build: ./frontend
     restart: always
     depends_on:
-      - api
+      api:
+        condition: service_healthy
     networks:
       - unstream
       # Traefik reaches the container over this; the domain is set in
@@ -29,6 +30,11 @@ services:
   pot-provider:
     image: brainicism/bgutil-ytdlp-pot-provider:latest
     restart: always
+    healthcheck:
+      test: ["CMD", "/usr/local/bin/node", "-e", "const net=require('net');const s=net.createConnection(4416,'127.0.0.1');s.on('connect',()=>{s.end();process.exit(0)});s.on('error',()=>process.exit(1))"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
     networks:
       - unstream
     logging: *logging
@@ -37,7 +43,8 @@ services:
     build: ./backend
     restart: always
     depends_on:
-      - pot-provider
+      pot-provider:
+        condition: service_healthy
     environment:
       - DOWNLOADS_TTL_HOURS=${DOWNLOADS_TTL_HOURS:-24}
       # Keep under what the host actually has free.
@@ -45,6 +52,7 @@ services:
       # Not interpolated on purpose: this is the one host where the limits are
       # load-bearing, and a leftover variable in Dokploy must not disable them.
       - RATE_LIMITS_ENABLED=true
+      - MAX_QUEUED_TRACKS=${MAX_QUEUED_TRACKS:-200}
       - YTDLP_REMOTE_COMPONENTS=${YTDLP_REMOTE_COMPONENTS-ejs:github}
       - YTDLP_CACHE_DIR=/app/cache
       - POT_PROVIDER_URL=${POT_PROVIDER_URL:-http://pot-provider:4416}

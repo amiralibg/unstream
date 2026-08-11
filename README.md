@@ -96,6 +96,8 @@ Everything is optional. `cp .env.example .env` and uncomment what you want — t
 | `DOWNLOADS_TTL_HOURS` | `0` (never) | Hours before a finished download is deleted |
 | `MAX_DOWNLOADS_GB` | `0` (no cap) | Disk ceiling; over it, finished jobs go oldest-first |
 | `DOWNLOAD_WORKERS` | `3` | Tracks downloaded in parallel |
+| `MAX_QUEUED_TRACKS` | `0` (self-hosted) | Global queued/running track cap; the Dokploy compose file defaults to 200 |
+| `JOB_METADATA_TTL_HOURS` | `168` | How long completed job status stays in memory; file retention is separate |
 | `RATE_LIMITS_ENABLED` | `false` | Per-caller rate limits. **Turn on if strangers can reach it** |
 | `MAX_TRACKS_PER_JOB` | `0` (no limit) | Tracks in one job |
 | `ADMIN_TOKEN` | *unset* | Enables the `/admin` dashboard. Unset = it doesn't exist |

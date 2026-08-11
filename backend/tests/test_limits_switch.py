@@ -51,7 +51,7 @@ def test_limits_off_never_refuses(monkeypatch):
     monkeypatch.setattr(limits, "RATE_LIMITS_ENABLED", False)
 
     # Far past every budget in the file, including the hourly ones.
-    for kind in ("search", "resolve", "download", "file", "zip", "collect"):
+    for kind in ("search", "resolve", "download", "file", "zip", "jobs", "collect"):
         spend(kind, "203.0.113.11", 1000)
 
 
