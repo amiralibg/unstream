@@ -55,6 +55,10 @@ DOWNLOADS_PER_HOUR = int(os.getenv("RATE_DOWNLOADS_PER_HOUR", "20"))
 FILES_PER_MINUTE = int(os.getenv("RATE_FILES_PER_MINUTE", "60"))
 # A ZIP is the whole album in one request, so it is priced per hour instead.
 ZIPS_PER_HOUR = int(os.getenv("RATE_ZIPS_PER_HOUR", "30"))
+# The browser polls all active jobs together every 900ms. Keep this generous
+# for a real UI while preventing an unmetered polling endpoint from becoming a
+# cheap CPU/connection amplifier.
+JOBS_PER_MINUTE = int(os.getenv("RATE_JOBS_PER_MINUTE", "120"))
 
 # One active job per caller would 429 the second song someone taps, because
 # the UI puts a download button on every row. Three matches the download
@@ -135,6 +139,7 @@ _RESOLVE = RateLimiter(RESOLVE_PER_MINUTE, 60)
 _DOWNLOAD = RateLimiter(DOWNLOADS_PER_HOUR, 3600)
 _FILE = RateLimiter(FILES_PER_MINUTE, 60)
 _ZIP = RateLimiter(ZIPS_PER_HOUR, 3600)
+_JOBS = RateLimiter(JOBS_PER_MINUTE, 60)
 # Analytics beacons: a real browser sends a handful per session, so this is
 # only here to stop someone inflating the numbers with a loop.
 _COLLECT = RateLimiter(int(os.getenv("RATE_COLLECT_PER_MINUTE", "30")), 60)
@@ -148,11 +153,13 @@ _LIMITERS = {
     "download": _DOWNLOAD,
     "file": _FILE,
     "zip": _ZIP,
+    "jobs": _JOBS,
     "collect": _COLLECT,
     "admin": _ADMIN,
 }
 
 _MESSAGES = {
+    "jobs": "Too many status checks - wait {retry}s and try again.",
     "search": "Too many searches — wait {retry}s and try again.",
     "resolve": "Too many links opened — wait {retry}s and try again.",
     "download": "Too many downloads started — wait {retry}s and try again.",

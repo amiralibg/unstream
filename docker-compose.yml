@@ -7,35 +7,38 @@
 
 services:
   frontend:
-    # Pulled if published, built from source if not. `--build` forces local.
-    image: ghcr.io/amiralibg/unstream-frontend:latest
+    # Always build locally; no published project images are required.
     build: ./frontend
     restart: unless-stopped
     ports:
       # The only port anything needs: nginx serves the app and proxies /api.
       - "${UNSTREAM_PORT:-8080}:80"
     depends_on:
-      - api
+      api:
+        condition: service_healthy
     logging: &logging
       driver: json-file
       options:
         max-size: 10m
         max-file: "3"
 
-  # Mints the proof-of-origin tokens YouTube asks datacenter IPs for. Free,
-  # keyless, stateless. From a home connection you almost certainly don't need
-  # it; it costs nothing idle and saves a bad afternoon if that ever changes.
   pot-provider:
     image: brainicism/bgutil-ytdlp-pot-provider:latest
     restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "/usr/local/bin/node", "-e", "const net=require('net');const s=net.createConnection(4416,'127.0.0.1');s.on('connect',()=>{s.end();process.exit(0)});s.on('error',()=>process.exit(1))"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
     logging: *logging
 
   api:
-    image: ghcr.io/amiralibg/unstream-api:latest
+    # Always build locally; no published project images are required.
     build: ./backend
     restart: unless-stopped
     depends_on:
-      - pot-provider
+      pot-provider:
+        condition: service_healthy
     environment:
       # 0 = keep downloads forever, no disk ceiling. The code defaults to 24h
       # and 20 GB, which is right for a public server and wrong for a folder

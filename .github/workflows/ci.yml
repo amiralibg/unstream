@@ -46,6 +46,15 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - run: docker compose -f docker-compose.yml config --quiet
+      - run: docker compose -f docker-compose.yml build --pull frontend api
+      # Run the self-hosted profile far enough to prove the built services and
+      # the PO-token sidecar can actually start and pass their healthchecks.
+      - run: docker compose -f docker-compose.yml up -d --wait
+      - run: docker compose -f docker-compose.yml ps
+      - if: always()
+        run: docker compose -f docker-compose.yml logs --no-color
+      - if: always()
+        run: docker compose -f docker-compose.yml down -v
       # Resolves without dokploy-network existing — config does not check that
       # external networks are present, only that they are declared.
       - run: docker compose -f compose.dokploy.yml config --quiet

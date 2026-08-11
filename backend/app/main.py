@@ -7,6 +7,7 @@ import hmac
 import io
 import os
 import re
+import threading
 import zipfile
 from collections.abc import Iterator
 from concurrent.futures import ThreadPoolExecutor, wait
@@ -26,6 +27,8 @@ from .models import Collection, ProviderError, SearchResult
 
 # Every provider here is keyless and free — no accounts, no API credentials.
 SEARCH_TIMEOUT_SECONDS = 20
+_SEARCH_EXECUTOR = ThreadPoolExecutor(max_workers=4)
+_SEARCH_SLOTS = threading.BoundedSemaphore(16)
 
 
 def resolve_any(url: str) -> Collection:
@@ -138,17 +141,24 @@ def search_any(query: str, page: int = 0) -> tuple[list[SearchResult], bool]:
 
     providers = [deezer.search, itunes.search, soundcloud_search, ytdlp.search_youtube]
 
-    pool = ThreadPoolExecutor(max_workers=len(providers))
-    futures = [pool.submit(p, query, page) for p in providers]
-    wait(futures, timeout=SEARCH_TIMEOUT_SECONDS)
-    # Don't block on stragglers — abandon anything still running.
-    pool.shutdown(wait=False, cancel_futures=True)
+    if not _SEARCH_SLOTS.acquire(blocking=False):
+        raise ProviderError("Search is busy — wait a moment and try again.")
+    futures = [_SEARCH_EXECUTOR.submit(p, query, page) for p in providers]
+    try:
+        done, _pending = wait(futures, timeout=SEARCH_TIMEOUT_SECONDS)
+    finally:
+        # Running provider calls cannot be force-killed, but the shared bounded
+        # executor prevents timed-out requests from creating unbounded threads.
+        for future in futures:
+            if not future.done():
+                future.cancel()
+        _SEARCH_SLOTS.release()
 
     merged: list[SearchResult] = []
     seen: set[str] = set()
     errors: list[Exception] = []
-    for future in futures:
-        if not future.done():
+    for future in done:
+        if future.cancelled():
             continue
         if future.exception():
             errors.append(future.exception())
@@ -325,13 +335,16 @@ def download(body: DownloadRequest, request: Request) -> dict:
         )
 
     visitor = limits.visitor(request)
-    job = jobs.start(
-        collection.name,
-        tracks,
-        body.quality,
-        owner=client,
-        visitor=visitor,
-    )
+    try:
+        job = jobs.start(
+            collection.name,
+            tracks,
+            body.quality,
+            owner=client,
+            visitor=visitor,
+        )
+    except jobs.QueueFullError as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
     analytics.record(
         "download_start",
         visitor=visitor,
@@ -344,19 +357,21 @@ def download(body: DownloadRequest, request: Request) -> dict:
 
 
 @app.get("/api/jobs")
-def job_statuses(ids: str) -> dict:
+def job_statuses(request: Request, ids: str) -> dict:
     """Poll several jobs at once: ?ids=a,b,c
 
     Unknown ids are omitted rather than raising, so a client restoring a job
     list from a previous session learns which the server has already swept
     without failing the whole poll.
     """
+    limits.enforce("jobs", request)
     wanted = [i for i in (part.strip() for part in ids.split(",")) if i][:50]
     return {"jobs": [job.as_dict() for i in wanted if (job := jobs.get(i))]}
 
 
 @app.get("/api/jobs/{job_id}")
-def job_status(job_id: str) -> dict:
+def job_status(job_id: str, request: Request) -> dict:
+    limits.enforce("jobs", request)
     job = jobs.get(job_id)
     if not job:
         raise HTTPException(status_code=404, detail="Unknown job")
