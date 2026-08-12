@@ -419,6 +419,30 @@ def job_status(job_id: str) -> dict:
     return job.as_dict()
 
 
+@app.post("/api/jobs/{job_id}/cancel")
+def cancel_job(job_id: str, request: Request) -> dict:
+    """Stop a running job. Idempotent, and safe to call on a finished one.
+
+    Not rate limited, on purpose: this is the endpoint that *reduces* what
+    the server is doing, and the job id is the same unguessable secret that
+    already gates the files. Charging someone to stop their own download
+    would be the one limit that costs us more when it bites.
+    """
+    job = jobs.get(job_id)
+    if not job:
+        raise HTTPException(status_code=404, detail="Unknown job")
+    stopped = jobs.cancel(job)
+    if stopped:
+        analytics.record(
+            "download_cancel",
+            visitor=limits.visitor(request),
+            detail=job.quality,
+            label=job.name,
+            value=stopped,
+        )
+    return job.as_dict()
+
+
 @app.get("/api/jobs/{job_id}/tracks/{track_id}/file")
 def track_file(job_id: str, track_id: str, request: Request) -> FileResponse:
     limits.enforce("file", request)

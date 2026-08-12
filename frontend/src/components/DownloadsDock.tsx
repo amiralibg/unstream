@@ -6,13 +6,15 @@ import {
   ChevronDown,
   Download,
   LoaderCircle,
+  Square,
   TriangleAlert,
   X,
 } from 'lucide-react'
 import clsx from 'clsx'
-import { jobZipUrl, trackFileUrl, qualityLabel, type Job, type JobTrack } from '../lib/api'
+import { apiError, jobZipUrl, trackFileUrl, qualityLabel, type Job, type JobTrack } from '../lib/api'
 import { useDownloads, type DownloadEntry } from '../lib/downloads'
 import { faNumerals, useMessages, useStartAlign } from '../lib/i18n'
+import { useToast } from '../lib/toast'
 import { ShareTrack } from './ShareTrack'
 
 /** Working, but with no percentage to report — these get a travelling band
@@ -57,6 +59,8 @@ function TrackLine({
         <Check className="size-3.5 shrink-0 animate-pop text-lime-flash" />
       ) : state.status === 'error' ? (
         <TriangleAlert className="size-3.5 shrink-0 text-danger" />
+      ) : state.status === 'cancelled' ? (
+        <X className="size-3.5 shrink-0 text-ink-500" />
       ) : state.status === 'queued' ? (
         <span className="grid size-3.5 shrink-0 place-items-center">
           <span className="size-1.5 rounded-full bg-ink-600" />
@@ -67,7 +71,9 @@ function TrackLine({
       <p
         className={clsx(
           'min-w-0 flex-1 truncate text-mini',
-          state.status === 'error' ? 'text-ink-400' : 'text-ink-100',
+          state.status === 'error' || state.status === 'cancelled'
+            ? 'text-ink-400'
+            : 'text-ink-100',
           faNumerals(title),
           startAlign,
         )}
@@ -98,6 +104,8 @@ function TrackLine({
         </>
       ) : state.status === 'error' ? (
         <span className="text-xs text-danger">{m.dock.failed}</span>
+      ) : state.status === 'cancelled' ? (
+        <span className="text-xs text-ink-400">{m.dock.cancelled}</span>
       ) : entry.expired ? (
         <span className="text-xs text-ink-400">{m.dock.deleted}</span>
       ) : (
@@ -132,15 +140,32 @@ function TrackLine({
 }
 
 function JobCard({ entry, capped = true }: { entry: DownloadEntry; capped?: boolean }) {
-  const { dismiss } = useDownloads()
+  const { cancel, dismiss } = useDownloads()
+  const { push } = useToast()
   const m = useMessages()
   const startAlign = useStartAlign()
+  const [stopping, setStopping] = useState(false)
   const job = entry.job
   const done = job?.done ?? 0
   const failed = job?.failed ?? 0
   const total = job?.total ?? entry.tracks.length
   const expired = entry.expired === true
   const finished = expired || (job?.finished ?? false)
+  const cancelled = job?.cancelled ?? false
+
+  const stop = async () => {
+    setStopping(true)
+    try {
+      await cancel(entry.jobId)
+    } catch (err) {
+      // The usual cause is a job the server has already forgotten, which is
+      // to say one that is no longer running — worth saying, not worth
+      // leaving the card stuck on a spinner over.
+      push(apiError(err, m), 'error')
+    } finally {
+      setStopping(false)
+    }
+  }
   const inFlight = job ? inFlightFraction(job) : 0
   const fraction = total ? Math.min(1, (done + failed + inFlight) / total) : 0
   // ZIP is for batches — a single song is just the mp3 link on its row.
@@ -181,6 +206,13 @@ function JobCard({ entry, capped = true }: { entry: DownloadEntry; capped?: bool
           <p className="text-xs text-ink-400 tabular-nums">
             {expired ? (
               m.dock.expired
+            ) : cancelled ? (
+              // The count is the point: "stopped" alone reads as though the
+              // tracks that did finish went with it, and they did not.
+              <>
+                {m.dock.stopped(done, total)}
+                {failed > 0 && <span className="text-danger"> · {m.dock.failedCount(failed)}</span>}
+              </>
             ) : finished ? (
               <>
                 {m.dock.progress(done, total)}
@@ -218,13 +250,30 @@ function JobCard({ entry, capped = true }: { entry: DownloadEntry; capped?: bool
             <Archive className="size-3.5" />
           </a>
         )}
-        {finished && (
+        {finished ? (
           <button
             onClick={() => dismiss(entry.jobId)}
             title={m.dock.remove}
             className="tap-target grid size-7 shrink-0 place-items-center rounded-ctl text-ink-400 transition hover:bg-ink-800 hover:text-ink-100"
           >
             <X className="size-3.5" />
+          </button>
+        ) : (
+          // A stop square, not the X the finished card uses: the two sit in
+          // the same corner and mean different things — one ends the work,
+          // the other only clears the row once the work is over.
+          <button
+            onClick={stop}
+            disabled={stopping}
+            title={m.dock.cancel}
+            aria-label={m.dock.cancelLong}
+            className="tap-target grid size-7 shrink-0 place-items-center rounded-ctl text-ink-400 transition hover:bg-ink-800 hover:text-danger disabled:opacity-50"
+          >
+            {stopping ? (
+              <LoaderCircle className="size-3.5 animate-spin" />
+            ) : (
+              <Square className="size-3 fill-current" />
+            )}
           </button>
         )}
       </div>
@@ -235,7 +284,10 @@ function JobCard({ entry, capped = true }: { entry: DownloadEntry; capped?: bool
           <div
             className={clsx(
               'h-full rounded-full transition-[width] duration-500 ease-out',
-              failed > 0 && done === 0 ? 'bg-danger' : 'bg-lime-flash',
+              // A stopped bar goes grey wherever it stopped. Left lime it
+              // reads as still running; red would call the user's own
+              // decision a failure.
+              cancelled ? 'bg-ink-600' : failed > 0 && done === 0 ? 'bg-danger' : 'bg-lime-flash',
             )}
             style={{ width: `${fraction * 100}%` }}
           />

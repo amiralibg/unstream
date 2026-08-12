@@ -22,7 +22,14 @@ export interface Collection {
 }
 
 export type TrackStatus =
-  'queued' | 'searching' | 'downloading' | 'tagging' | 'retrying' | 'done' | 'error'
+  | 'queued'
+  | 'searching'
+  | 'downloading'
+  | 'tagging'
+  | 'retrying'
+  | 'done'
+  | 'error'
+  | 'cancelled'
 
 export interface JobTrack {
   id: string
@@ -42,6 +49,7 @@ export interface Job {
   failed: number
   total: number
   finished: boolean
+  cancelled: boolean
 }
 
 /** Audio the user can ask for: an mp3 bitrate in kbps, or the upload's own
@@ -241,6 +249,11 @@ export async function getJobs(jobIds: string[]): Promise<Job[]> {
     params: { ids: jobIds.join(',') },
   })
   return data.jobs
+}
+
+export async function cancelJob(jobId: string): Promise<Job> {
+  const { data } = await client.post<Job>(`/jobs/${jobId}/cancel`)
+  return data
 }
 
 export const trackFileUrl = (jobId: string, trackId: string) =>

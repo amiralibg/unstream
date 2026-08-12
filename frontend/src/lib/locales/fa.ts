@@ -234,6 +234,10 @@ const fa: Messages = {
     downloadFileLong: (title, ext) => `دانلود ${title} با فرمت ${ext}`,
     failed: 'ناموفق',
     deleted: 'پاک شده',
+    cancel: 'توقف این دانلود',
+    cancelLong: 'توقف این دانلود — هرچی تا حالا تموم شده می‌مونه',
+    cancelled: 'متوقف شد',
+    stopped: (done, total) => `متوقف شد — ${fd(done)} از ${fd(total)} دانلود شد`,
   },
 
   share: {
@@ -270,6 +274,7 @@ const fa: Messages = {
     partial: (name, done, failed) =>
       `${name} — ${fd(done)} آهنگ آماده شد، ${fd(failed)} تا دانلود نشد`,
     failed: (name) => `${name} — دانلود انجام نشد`,
+    stopped: (name, n) => `${name} — متوقف شد، ${fd(n)} آهنگ آماده‌ی ذخیره‌ست`,
     linkDetected: 'لینک پیدا شد — در حال باز کردن…',
     newVersion: 'نسخه‌ی جدید آنستریم اومده',
     refresh: 'رفرش',

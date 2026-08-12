@@ -96,7 +96,9 @@ function DownloadNotifier() {
       if (finished && was === false) {
         const done = entry.job!.done
         const failed = entry.job!.failed
-        if (done > 0 && failed === 0) {
+        if (entry.job!.cancelled) {
+          if (done > 0) push(m.notify.stopped(entry.name, done), 'info')
+        } else if (done > 0 && failed === 0) {
           push(m.notify.ready(entry.name, done), 'success')
         } else if (done > 0) {
           push(m.notify.partial(entry.name, done, failed), 'info')

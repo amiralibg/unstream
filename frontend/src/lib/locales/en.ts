@@ -264,6 +264,10 @@ const en = {
     downloadFileLong: (title: string, ext: string) => `Download ${title} as ${ext}`,
     failed: 'Failed',
     deleted: 'Deleted',
+    cancel: 'Stop this download',
+    cancelLong: 'Stop this download and keep whatever has finished',
+    cancelled: 'Stopped',
+    stopped: (done: number, total: number) => `Stopped — ${done} of ${total} downloaded`,
   },
 
   share: {
@@ -301,6 +305,8 @@ const en = {
     partial: (name: string, done: number, failed: number) =>
       `${name} — ${done} ready, ${failed} failed to download`,
     failed: (name: string) => `${name} — download failed`,
+    stopped: (name: string, n: number) =>
+      `${name} — stopped, ${n} ${n === 1 ? 'track is' : 'tracks are'} ready to save`,
     linkDetected: 'Link detected — opening…',
     newVersion: 'A new version of Unstream is available',
     refresh: 'Refresh',

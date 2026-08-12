@@ -9,6 +9,7 @@ import {
   type ReactNode,
 } from 'react'
 import {
+  cancelJob,
   DEFAULT_QUALITY,
   getJobs,
   isQuality,
@@ -61,6 +62,7 @@ interface DownloadsContextValue {
   start: (url: string, collection: Collection, trackIds?: string[]) => Promise<void>
   /** One-click download of a single search result: resolve, then queue. */
   startFromResult: (result: SearchResult) => Promise<void>
+  cancel: (jobId: string) => Promise<void>
   dismiss: (jobId: string) => void
   /** Latest entry started from this URL — lets CollectionView show inline progress. */
   entryForUrl: (url: string) => DownloadEntry | undefined
@@ -192,6 +194,24 @@ export function DownloadsProvider({ children }: { children: ReactNode }) {
     [start],
   )
 
+  const cancel = useCallback(async (jobId: string) => {
+    const job = await cancelJob(jobId)
+    samplesRef.current.delete(jobId)
+    setEntries((prev) =>
+      prev.map((e) => (e.jobId === jobId ? { ...e, job, etaSeconds: null } : e)),
+    )
+    window.setTimeout(() => {
+      void getJobs([jobId])
+        .then(([fresh]) => {
+          if (!fresh) return
+          setEntries((prev) => prev.map((e) => (e.jobId === jobId ? { ...e, job: fresh } : e)))
+        })
+        .catch(() => {
+          return
+        })
+    }, 2000)
+  }, [])
+
   const dismiss = useCallback((jobId: string) => {
     setEntries((prev) => prev.filter((e) => e.jobId !== jobId))
   }, [])
@@ -282,6 +302,7 @@ export function DownloadsProvider({ children }: { children: ReactNode }) {
       setEmbedLyrics,
       start,
       startFromResult,
+      cancel,
       dismiss,
       entryForUrl,
       entriesForUrl,
@@ -296,6 +317,7 @@ export function DownloadsProvider({ children }: { children: ReactNode }) {
       setEmbedLyrics,
       start,
       startFromResult,
+      cancel,
       dismiss,
       entryForUrl,
       entriesForUrl,

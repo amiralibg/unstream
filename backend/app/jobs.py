@@ -57,12 +57,19 @@ _SWEEP_INTERVAL_SECONDS = 600
 DOWNLOAD_WORKERS = max(1, int(os.getenv("DOWNLOAD_WORKERS", "3")))
 _executor = ThreadPoolExecutor(max_workers=DOWNLOAD_WORKERS)
 
+# Track states nothing more will ever happen to. A cancelled track counts as
+# settled the same way an errored one does — the job is over either way, and
+# without that a stopped job would never look finished and would be polled,
+# and held out of the sweeper's reach, forever.
+_SETTLED = ("done", "error", "cancelled")
+
 
 @dataclass
 class TrackState:
     track: Track
     filename: str  # unique stem within the job, no extension
-    status: str = "queued"  # queued | searching | downloading | tagging | retrying | done | error
+    # queued | searching | downloading | tagging | retrying | done | error | cancelled
+    status: str = "queued"
     progress: float = 0.0
     error: str | None = None
     file_path: Path | None = None
@@ -95,6 +102,10 @@ class Job:
     visitor: str = ""
     tracks: dict[str, TrackState] = field(default_factory=dict)
     lock: threading.Lock = field(default_factory=threading.Lock)
+    # Set once, never cleared: a job the user stopped does not resume. Workers
+    # poll it rather than being killed — a thread pool has no way to interrupt
+    # a running task, so the task has to agree to stop.
+    stop: threading.Event = field(default_factory=threading.Event)
 
     @property
     def dir(self) -> Path:
@@ -103,13 +114,14 @@ class Job:
     @property
     def finished(self) -> bool:
         with self.lock:
-            return all(s.status in ("done", "error") for s in self.tracks.values())
+            return all(s.status in _SETTLED for s in self.tracks.values())
 
     def as_dict(self) -> dict:
         with self.lock:
             states = [s.as_dict() for s in self.tracks.values()]
         done = sum(1 for s in states if s["status"] == "done")
         failed = sum(1 for s in states if s["status"] == "error")
+        settled = sum(1 for s in states if s["status"] in _SETTLED)
         return {
             "id": self.id,
             "name": self.name,
@@ -118,7 +130,10 @@ class Job:
             "done": done,
             "failed": failed,
             "total": len(states),
-            "finished": done + failed == len(states),
+            "finished": settled == len(states),
+            # Whether it stopped early because someone asked it to, which is
+            # the difference between "3 of 20" as a result and as a failure.
+            "cancelled": self.stop.is_set(),
         }
 
 
@@ -165,7 +180,18 @@ def _host_of(url: str) -> str:
 
 
 def _run_track(job: Job, state: TrackState) -> None:
+    # Cancelling a 100-track job leaves most of it sitting in the pool queue;
+    # those tasks still run, and this is where they cost nothing.
+    if job.stop.is_set():
+        with job.lock:
+            state.status = "cancelled"
+        return
+
     def on_progress(stage: str, fraction: float) -> None:
+        # Once stopped, cancel() has already written the final status and a
+        # late stage report from the unwinding download would undo it.
+        if job.stop.is_set():
+            return
         with job.lock:
             state.status = stage
             state.progress = fraction
@@ -189,6 +215,7 @@ def _run_track(job: Job, state: TrackState) -> None:
             quality=job.quality,
             on_source=on_source,
             embed_lyrics=job.embed_lyrics,
+            should_cancel=job.stop.is_set,
         )
         with job.lock:
             state.status = "done"
@@ -203,6 +230,11 @@ def _run_track(job: Job, state: TrackState) -> None:
             value=chosen["attempt"],
             ms=int((time.monotonic() - started) * 1000),
         )
+    except downloader.Cancelled:
+        # Not a failure and not worth an analytics row — the user asked for it,
+        # and cancel() has already counted the job once.
+        with job.lock:
+            state.status = "cancelled"
     except Exception as exc:  # any failure marks just this track, not the job
         with job.lock:
             state.status = "error"
@@ -252,6 +284,27 @@ def start(
     for state in job.tracks.values():
         _executor.submit(_run_track, job, state)
     return job
+
+
+def cancel(job: Job) -> int:
+    """Stop a job and report how many tracks that actually cut short.
+
+    Returns immediately: the flag is what workers act on, and the one running
+    the download notices at its next progress callback — a second or so, not
+    the rest of the track. Statuses are written here rather than by the
+    workers so the next poll already reflects the cancellation, whether the
+    track was mid-download or still queued behind two others.
+
+    Whatever finished before this point is left alone, files included: the
+    tracks that are already on disk are still the ones the user asked for,
+    and can still be saved from the panel.
+    """
+    job.stop.set()
+    with job.lock:
+        stopped = [s for s in job.tracks.values() if s.status not in _SETTLED]
+        for state in stopped:
+            state.status = "cancelled"
+    return len(stopped)
 
 
 def _measure(path: Path) -> tuple[float, int] | None:

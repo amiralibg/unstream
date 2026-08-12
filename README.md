@@ -170,6 +170,7 @@ docker compose exec -T api python -c \
 | `POST /api/download` `{url, track_ids?, quality?}`     | Start a job, returns `job_id`. `quality` is `128` \| `192` \| `320` \| `original`         |
 | `GET /api/jobs/{id}`                                   | Per-track status/progress                                                                 |
 | `GET /api/jobs?ids=a,b,c`                              | The same for several jobs — what the UI polls. Unknown ids are omitted rather than 404ing |
+| `POST /api/jobs/{id}/cancel`                           | Stop a running job. Finished tracks keep their files; the rest never run                  |
 | `GET /api/jobs/{id}/tracks/{tid}/file`                 | Download one finished track                                                               |
 | `GET /api/jobs/{id}/zip`                               | ZIP of all finished tracks, streamed as it's built                                        |
 | `GET /api/admin/stats?days=` · `/api/admin/extraction` | Dashboard and diagnostics, `Authorization: Bearer $ADMIN_TOKEN`                           |
