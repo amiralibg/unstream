@@ -307,6 +307,26 @@ def cancel(job: Job) -> int:
     return len(stopped)
 
 
+def shutdown() -> None:
+    """Stop everything in flight so the process can actually exit.
+
+    Without this, Ctrl+C hangs. The pool's threads are non-daemon, so the
+    interpreter's atexit hook joins them on the way out, and a worker parked
+    in a socket read inside yt-dlp never returns to be joined — the server
+    stops answering but refuses to die, which reads as a crash.
+
+    Cancelling every job first is what makes the join finish: the workers
+    already poll that flag, so a download in progress unwinds at its next
+    progress callback instead of running to completion. `cancel_futures`
+    then drops the tracks that never started. A thread inside the search
+    step has no such callback and is bounded only by its socket timeout, so
+    this shortens shutdown rather than guaranteeing it is instant.
+    """
+    for job in list(_jobs.values()):
+        job.stop.set()
+    _executor.shutdown(wait=False, cancel_futures=True)
+
+
 def _measure(path: Path) -> tuple[float, int] | None:
     """(mtime of the newest file, total bytes) for one job directory."""
     try:

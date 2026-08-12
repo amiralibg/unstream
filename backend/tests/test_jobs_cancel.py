@@ -138,6 +138,33 @@ def test_a_cancelled_track_is_not_an_error(job, monkeypatch):
     assert state.error is None
 
 
+def test_shutdown_stops_every_job(monkeypatch):
+    """Ctrl+C hangs unless the pool's threads are told to give up.
+
+    They are non-daemon, so the interpreter joins them on the way out, and a
+    worker inside a download would otherwise have to finish the track first.
+    """
+    jobs_registry = {}
+    for name in ("a", "b"):
+        job = jobs.Job(id=name, name=name)
+        job.tracks["t"] = jobs.TrackState(
+            track=make_track(), filename="t", status="downloading"
+        )
+        jobs_registry[name] = job
+    monkeypatch.setattr(jobs, "_jobs", jobs_registry)
+    shutdown_args = {}
+    monkeypatch.setattr(
+        jobs._executor, "shutdown", lambda **kw: shutdown_args.update(kw)
+    )
+
+    jobs.shutdown()
+
+    assert all(job.stop.is_set() for job in jobs_registry.values())
+    # Waiting here is the deadlock being avoided, and the queued tracks are
+    # dropped rather than each starting a download on the way out.
+    assert shutdown_args == {"wait": False, "cancel_futures": True}
+
+
 def test_the_downloader_refuses_to_start_when_already_cancelled(tmp_path):
     """The last line of defence: no search, no network, no partial file."""
     stages: list[str] = []

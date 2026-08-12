@@ -18,6 +18,7 @@ from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
 from yt_dlp import YoutubeDL
+from yt_dlp.plugins import load_all_plugins
 from yt_dlp.utils import DownloadError as YtdlpError
 
 from .models import Collection, ProviderError, SearchResult, Track
@@ -106,7 +107,18 @@ COOKIEFILE_LIVE = _writable_cookiefile(COOKIEFILE) if COOKIEFILE else ""
 
 def base_opts(**extra) -> dict:
     """Options every yt-dlp call in the project shares."""
-    opts = {"quiet": True, "no_warnings": True, **extra}
+    # `noprogress` is not implied by `quiet` — the progress bar is written on
+    # its own path, so without this every download thread streams "[download]
+    # 27.5% of 3.64MiB" into the server's stdout. That is noise at best: the
+    # UI's progress comes from `progress_hooks`, never from this text.
+    #
+    # At worst it wedges the process. Three workers write continuously, and a
+    # stdout that stops draining — a piped log nobody reads, or a Windows
+    # console paused by a click while QuickEdit is on — blocks whoever writes
+    # to it. Uvicorn's request log shares that stdout, so the block reaches
+    # the event loop and the whole API stops answering, downloads and /health
+    # alike, looking for all the world like a crash.
+    opts = {"quiet": True, "no_warnings": True, "noprogress": True, **extra}
     if REMOTE_COMPONENTS:
         opts["remote_components"] = REMOTE_COMPONENTS.split(",")
     if CACHE_DIR:
@@ -120,6 +132,25 @@ def base_opts(**extra) -> dict:
         args["youtubepot-bgutilhttp"] = {"base_url": [POT_PROVIDER_URL]}
         opts["extractor_args"] = args
     return opts
+
+
+def preload_plugins() -> None:
+    """Load yt-dlp's plugins once, before any worker thread exists.
+
+    Every YoutubeDL() checks a plain unlocked flag and loads the plugins if
+    it is still False, setting it only once loading has finished. Loading
+    drops the package from sys.modules on the way in, so the module body
+    re-runs and re-registers providers that are already in the registry —
+    which is an assertion, printed as a traceback per plugin.
+
+    Nothing breaks: the first registration stands and yt-dlp carries on. But
+    this project builds YoutubeDL instances from several threads at once —
+    four in the search fan-out, one per download worker — so several of them
+    read that flag as False together and race, and the log fills with
+    tracebacks that look like a failure and are not. Doing it here, while
+    there is still only one thread, closes the window for good.
+    """
+    load_all_plugins()
 
 
 def status() -> dict:

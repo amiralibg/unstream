@@ -170,9 +170,12 @@ def search_any(query: str, page: int = 0) -> tuple[list[SearchResult], bool]:
 
 @asynccontextmanager
 async def lifespan(_app: FastAPI):
+    ytdlp.preload_plugins()
     analytics.start()
     jobs.start_sweeper()
     yield
+    # Ctrl+C otherwise hangs on the download pool's non-daemon threads.
+    jobs.shutdown()
 
 
 app = FastAPI(title="Unstream", version="0.0.1", lifespan=lifespan)
