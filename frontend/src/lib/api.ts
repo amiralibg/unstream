@@ -11,6 +11,9 @@ export interface Track {
   track_number: number
   release_date: string
   preview_url: string | null
+  source_url: string | null
+  /** Lyrics preview attached by the backend if known. */
+  lyrics?: string | null
 }
 
 export interface Collection {
@@ -21,10 +24,15 @@ export interface Collection {
   tracks: Track[]
 }
 
-/** `cancelled` is terminal like `done` and `error`, and is not a failure: it
- *  means someone stopped this job. Mirrors the statuses in backend/app/jobs.py. */
 export type TrackStatus =
-  'queued' | 'searching' | 'downloading' | 'tagging' | 'retrying' | 'done' | 'error' | 'cancelled'
+  | 'queued'
+  | 'searching'
+  | 'downloading'
+  | 'tagging'
+  | 'retrying'
+  | 'done'
+  | 'error'
+  | 'cancelled'
 
 export interface JobTrack {
   id: string
@@ -32,13 +40,15 @@ export interface JobTrack {
   progress: number
   error: string | null
   /** Format the finished file actually came out as ('mp3' | 'm4a' | 'opus'). */
-  ext: string | null
+  ext?: string | null
+  path?: string
 }
 
 export interface Job {
   id: string
   name: string
   quality: Quality
+  dir: string | null
   tracks: JobTrack[]
   done: number
   failed: number
@@ -164,7 +174,7 @@ const URL_PATTERNS = [
   /open\.spotify\.com\/(intl-[a-zA-Z-]+\/)?(track|album|playlist)\//,
   /deezer\.com\/([a-z]{2}\/)?(track|album|playlist)\/\d+/,
   /music\.apple\.com\/([a-z]{2}\/)?(album|song)\//,
-  /(music\.|www\.|m\.)?(youtube\.com\/(watch|playlist)\?|youtu\.be\/)/,
+  /(music\.|www\.|m\.)?(youtube\.com\/(watch|playlist|shorts)|youtu\.be\/)/,
   /(www\.|m\.|on\.)?soundcloud\.com\/./,
 ]
 

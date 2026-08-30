@@ -5,6 +5,7 @@ Run with:  uvicorn app.main:app --reload --port 8000
 
 import hmac
 import io
+import json
 import os
 import re
 import zipfile
@@ -136,7 +137,14 @@ def search_any(query: str, page: int = 0) -> tuple[list[SearchResult], bool]:
         except Exception:
             return ytdlp.search_soundcloud(q, p)  # fallback: tracks only
 
-    providers = [deezer.search, itunes.search, soundcloud_search, ytdlp.search_youtube]
+    UNSTREAM_YOUTUBE_DISABLED = os.getenv("UNSTREAM_YOUTUBE_DISABLED", "").lower() in (
+        "1",
+        "true",
+        "yes",
+    )
+    providers = [deezer.search, itunes.search, soundcloud_search]
+    if not UNSTREAM_YOUTUBE_DISABLED:
+        providers.append(ytdlp.search_youtube)
 
     pool = ThreadPoolExecutor(max_workers=len(providers))
     futures = [pool.submit(p, query, page) for p in providers]
@@ -177,9 +185,58 @@ async def lifespan(_app: FastAPI):
 
 app = FastAPI(title="Unstream", version="0.0.1", lifespan=lifespan)
 
+_LOCAL_HOSTS = {"localhost", "127.0.0.1", "::1"}
+_LOCAL_SCHEMES = {"tauri", "app", "vscode-webview"}
+
+
+def _is_origin_allowed(origin: str, request: Request) -> bool:
+    """Allow requests with no origin (direct/curl/PWA), local schemes,
+    loopback addresses, or matching Host / X-Forwarded-Host header."""
+    if not origin:
+        return True
+    try:
+        parsed = urlparse(origin)
+    except Exception:
+        return False
+
+    if parsed.scheme in _LOCAL_SCHEMES:
+        return True
+
+    origin_host = (parsed.hostname or "").lower()
+    if origin_host in _LOCAL_HOSTS or origin_host.endswith(".localhost"):
+        return True
+
+    req_host = (request.headers.get("host") or "").split(":")[0].lower()
+    forwarded_host = (request.headers.get("x-forwarded-host") or "").split(":")[0].lower()
+    if origin_host and (origin_host == req_host or origin_host == forwarded_host):
+        return True
+
+    extra_origins = os.getenv("ALLOWED_ORIGINS", "")
+    if extra_origins:
+        allowed_list = [o.strip() for o in extra_origins.split(",") if o.strip()]
+        if origin in allowed_list or f"{parsed.scheme}://{parsed.netloc}" in allowed_list:
+            return True
+
+    return False
+
+
+@app.middleware("http")
+async def origin_check_middleware(request: Request, call_next):
+    origin = request.headers.get("origin")
+    if origin and not _is_origin_allowed(origin, request):
+        return Response(status_code=403, content="Forbidden origin\n", media_type="text/plain")
+    return await call_next(request)
+
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173", "http://127.0.0.1:5173"],
+    allow_origins=[
+        "http://localhost:5173",
+        "http://127.0.0.1:5173",
+        "tauri://localhost",
+        "https://tauri.localhost",
+        "http://tauri.localhost",
+    ],
     allow_methods=["*"],
     allow_headers=["*"],
 )
@@ -215,6 +272,26 @@ _MEDIA_TYPES = {
 @app.get("/health")
 def health() -> dict:
     return {"status": "ok"}
+
+
+@app.get("/config.js", include_in_schema=False)
+def config_js() -> Response:
+    default_locale = os.getenv("UNSTREAM_DEFAULT_LOCALE", "")
+    youtube_disabled = os.getenv("UNSTREAM_YOUTUBE_DISABLED", "").lower() in (
+        "1",
+        "true",
+        "yes",
+    )
+    config = {
+        "defaultLocale": default_locale,
+        "youtubeDisabled": youtube_disabled,
+    }
+    content = f"window.__UNSTREAM_CONFIG__ = {json.dumps(config)};\n"
+    return Response(
+        content=content,
+        media_type="application/javascript",
+        headers={"Cache-Control": "no-cache"},
+    )
 
 
 @app.get("/api/search")
@@ -469,6 +546,56 @@ def track_file(job_id: str, track_id: str, request: Request) -> FileResponse:
     )
 
 
+@app.get("/api/jobs/{job_id}/tracks/{track_id}/path")
+def track_path(job_id: str, track_id: str) -> dict:
+    """Local absolute path of a downloaded track, for the desktop shell."""
+    job = jobs.get(job_id)
+    if not job:
+        raise HTTPException(status_code=404, detail="Unknown job")
+    state = job.tracks.get(track_id)
+    if not state or state.status != "done" or not state.file_path:
+        raise HTTPException(status_code=404, detail="Track not ready")
+    return {
+        "path": str(state.file_path.resolve()),
+        "dir": str(state.file_path.parent.resolve()),
+        "filename": state.file_path.name,
+    }
+
+
+@app.get("/api/jobs/{job_id}/path")
+def job_path(job_id: str) -> dict:
+    """Local absolute path of a job folder, for the desktop shell."""
+    job = jobs.get(job_id)
+    if not job:
+        raise HTTPException(status_code=404, detail="Unknown job")
+    return {
+        "dir": str(job.dir.resolve()),
+        "downloads_dir": str(jobs.DOWNLOADS_DIR.resolve()),
+    }
+
+
+class DesktopConfigUpdate(BaseModel):
+    downloads_dir: str | None = None
+
+
+@app.post("/api/desktop/config")
+def update_desktop_config(payload: DesktopConfigUpdate) -> dict:
+    """Dynamically update downloads directory in the running backend."""
+    if payload.downloads_dir:
+        jobs.set_downloads_dir(payload.downloads_dir)
+    return {
+        "downloads_dir": str(jobs.DOWNLOADS_DIR.resolve()),
+    }
+
+
+@app.get("/api/desktop/config")
+def get_desktop_config() -> dict:
+    """Return currently active backend configuration."""
+    return {
+        "downloads_dir": str(jobs.DOWNLOADS_DIR.resolve()),
+    }
+
+
 class _ZipSink(io.RawIOBase):
     """Holds what ZipFile writes until the generator can yield it away.
 
@@ -662,3 +789,27 @@ def admin_extraction(request: Request) -> dict:
     """
     require_admin(request)
     return ytdlp.status()
+
+
+@app.get("/{full_path:path}", include_in_schema=False)
+def serve_spa(full_path: str) -> Response:
+    """Serve built frontend assets, with SPA fallback to index.html."""
+    static_dir_str = os.getenv("UNSTREAM_STATIC_DIR", "")
+    if not static_dir_str:
+        raise HTTPException(status_code=404, detail="Not Found")
+    static_dir = Path(static_dir_str).resolve()
+    if not static_dir.is_dir():
+        raise HTTPException(status_code=404, detail="Not Found")
+
+    index_file = static_dir / "index.html"
+    if full_path:
+        try:
+            target = (static_dir / full_path).resolve()
+            if target.is_relative_to(static_dir) and target.is_file():
+                return FileResponse(target)
+        except Exception:
+            pass
+    if index_file.is_file():
+        return FileResponse(index_file)
+    raise HTTPException(status_code=404, detail="Not Found")
+

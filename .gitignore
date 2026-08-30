@@ -20,3 +20,14 @@ cookies.txt
 # Dokploy writes File Mounts here, beside the checkout — including the
 # cookie file compose.dokploy.yml mounts.
 files/
+
+# Build artifacts and dependencies
+backend/build/
+backend/dist/
+desktop/src-tauri/target/
+desktop/src-tauri/bin/
+desktop/src-tauri/resources/
+desktop/node_modules/
+*.key
+desktop/updater.key*
+

@@ -472,3 +472,44 @@ body {
     scroll-behavior: auto !important;
   }
 }
+
+/* Custom desktop slim scrollbars */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.12);
+  border-radius: 9999px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.25);
+}
+
+html {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 255, 255, 0.15) transparent;
+}
+
+/* Native window dragging for custom titlebar */
+.custom-titlebar,
+[data-tauri-drag-region] {
+  -webkit-app-region: drag;
+  app-region: drag;
+  user-select: none;
+}
+
+.custom-titlebar button,
+.custom-titlebar a,
+.custom-titlebar input,
+.custom-titlebar [data-no-drag],
+[data-no-drag] {
+  -webkit-app-region: no-drag;
+  app-region: no-drag;
+}

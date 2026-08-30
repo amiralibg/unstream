@@ -9,7 +9,8 @@
 </p>
 
 <p align="center">
-  <a href="#quick-start"><b>Quick start</b></a> ·
+  <a href="#get-the-app"><b>Get Desktop App</b></a> ·
+  <a href="#quick-start">Quick start</a> ·
   <a href="#configuration">Configuration</a> ·
   <a href="#when-downloads-fail">Troubleshooting</a> ·
   <a href="README.fa.md">فارسی</a>
@@ -21,7 +22,18 @@ No accounts. No API keys. Nothing paid. You run it, so the files are yours and n
 
 > The interface ships in **Farsi and English**, switchable from the header. Farsi is the default because that is the audience it was built for ([why](docs/DESIGN.md#farsi-only)); set `UNSTREAM_DEFAULT_LOCALE=en` if you want English to be what people land on.
 
-## Quick start
+## Get the App (Recommended)
+
+The easiest way to run Unstream without Docker. Runs completely locally on your device with no server dependencies for audio egress and saves tagged audio directly to your music library.
+
+| Platform | Download | Instructions |
+| --- | --- | --- |
+| **macOS (Apple Silicon)** | [Download .dmg](https://github.com/amiralibg/unstream/releases/latest) | Unsigned v1: Right-click → Open, or run `xattr -d com.apple.quarantine /Applications/Unstream.app` |
+| **macOS (Intel)** | [Download .dmg](https://github.com/amiralibg/unstream/releases/latest) | Same as above |
+| **Windows** | [Download .exe](https://github.com/amiralibg/unstream/releases/latest) | Click "More info" → "Run anyway" if SmartScreen appears |
+| **Linux** | [Download .AppImage / .deb](https://github.com/amiralibg/unstream/releases/latest) | `chmod +x` and run, or `dpkg -i` |
+
+## Quick start (Docker)
 
 You need [Docker](https://docs.docker.com/get-started/get-docker/). Nothing else — no Python, no Node, no ffmpeg on your machine.
 
@@ -121,11 +133,11 @@ That takes effect on restart — no rebuild, even on the prebuilt images, becaus
 
 ## Can I host this for other people?
 
-Not on an ordinary VPS, and this is the one thing that works locally and fails on a rented server.
+Not for YouTube audio on an ordinary VPS — and this is why the [Desktop App](#get-the-desktop-app) exists.
 
-YouTube treats a datacenter address differently from a home one. From a VPS it answers `LOGIN_REQUIRED` at the playability check — before a proof-of-origin token is asked for and before a JS challenge exists to solve — so the defences the image ships cannot reach the point where they'd help. From a home connection none of that happens.
+YouTube treats a datacenter address differently from a home one. From a VPS it answers `LOGIN_REQUIRED` at the playability check — before a proof-of-origin token is asked for and before a JS challenge exists to solve — so the defences the image ships cannot reach the point where they'd help. From the desktop app on a home connection, none of that happens.
 
-Making a public instance work needs egress from a non-datacenter address: a residential or ISP proxy, which costs money. There is no free workaround; if there were, it would be in this repo. SoundCloud is unaffected throughout.
+Everything else — metadata resolution, search, Deezer/Spotify/Apple Music scraping, lyrics, and SoundCloud downloads — works fine from a VPS. If hosting a public instance, set `UNSTREAM_YOUTUBE_DISABLED=true` in `compose.dokploy.yml` to serve everything else honestly while prompting users to use the Desktop app for YouTube downloads.
 
 If you're deploying it anyway — for yourself, behind a tunnel, or with proxied egress — use [`compose.dokploy.yml`](compose.dokploy.yml), which is the live deployment's file, and **set `RATE_LIMITS_ENABLED=true`**. Without accounts, per-IP limits are the only thing between your server and everyone.
 

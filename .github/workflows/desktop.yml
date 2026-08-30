@@ -1,0 +1,127 @@
+name: Release Desktop App
+
+on:
+  push:
+    tags: ["v*"]
+  schedule:
+    - cron: "17 4 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build-desktop:
+    name: Build (${{ matrix.platform.name }})
+    runs-on: ${{ matrix.platform.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        platform:
+          - name: macOS-arm64
+            os: macos-14
+            deno_url: "https://github.com/denoland/deno/releases/download/v2.9.5/deno-aarch64-apple-darwin.zip"
+            target: aarch64-apple-darwin
+          - name: macOS-x64
+            os: macos-13
+            deno_url: "https://github.com/denoland/deno/releases/download/v2.9.5/deno-x86_64-apple-darwin.zip"
+            target: x86_64-apple-darwin
+          - name: Linux-x64
+            os: ubuntu-22.04
+            deno_url: "https://github.com/denoland/deno/releases/download/v2.9.5/deno-x86_64-unknown-linux-gnu.zip"
+            target: x86_64-unknown-linux-gnu
+          - name: Linux-arm64
+            os: ubuntu-24.04-arm
+            deno_url: "https://github.com/denoland/deno/releases/download/v2.9.5/deno-aarch64-unknown-linux-gnu.zip"
+            target: aarch64-unknown-linux-gnu
+          - name: Windows-x64
+            os: windows-latest
+            deno_url: "https://github.com/denoland/deno/releases/download/v2.9.5/deno-x86_64-pc-windows-msvc.zip"
+            target: x86_64-pc-windows-msvc
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Setup uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+
+      - name: Install Linux dependencies
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            libwebkit2gtk-4.1-dev \
+            build-essential \
+            curl \
+            wget \
+            file \
+            libxdo-dev \
+            libssl-dev \
+            libayatana-appindicator3-dev \
+            librsvg2-dev \
+            ffmpeg
+
+      - name: Install macOS ffmpeg
+        if: runner.os == 'macOS'
+        run: |
+          brew install ffmpeg
+
+      - name: Install Windows ffmpeg
+        if: runner.os == 'Windows'
+        run: |
+          choco install ffmpeg
+
+      - name: Build Frontend
+        run: |
+          cd frontend
+          npm ci
+          npm run build
+
+      - name: Build Backend Bundle with PyInstaller
+        run: |
+          cd backend
+          uv sync --dev
+          uv run pyinstaller --noconfirm unstream-api.spec
+
+      - name: Prepare bundled binaries (deno + ffmpeg) - Unix
+        if: runner.os != 'Windows'
+        run: |
+          mkdir -p desktop/src-tauri/bin
+          curl -fsSL -o /tmp/deno.zip "${{ matrix.platform.deno_url }}"
+          unzip -o -q /tmp/deno.zip -d desktop/src-tauri/bin
+          chmod +x desktop/src-tauri/bin/deno
+          cp $(which ffmpeg) desktop/src-tauri/bin/ffmpeg
+          chmod +x desktop/src-tauri/bin/ffmpeg
+
+      - name: Prepare bundled binaries (deno + ffmpeg) - Windows
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path desktop/src-tauri/bin
+          Invoke-WebRequest -Uri "${{ matrix.platform.deno_url }}" -OutFile "$env:TEMP/deno.zip"
+          Expand-Archive -Path "$env:TEMP/deno.zip" -DestinationPath desktop/src-tauri/bin -Force
+          Copy-Item (Get-Command ffmpeg).Source desktop/src-tauri/bin/ffmpeg.exe
+
+      - name: Build Tauri App
+        uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+        with:
+          projectPath: "./desktop"
+          tagName: ${{ startsWith(github.ref, 'refs/tags/') && github.ref_name || format('v0.0.1-{0}', github.run_number) }}
+          releaseName: "Unstream Desktop __VERSION__"
+          releaseBody: "See release assets below for macOS, Windows, and Linux."
+          releaseDraft: false
+          prerelease: false

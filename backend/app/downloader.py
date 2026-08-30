@@ -58,6 +58,22 @@ class DownloadError(Exception):
     pass
 
 
+# YouTube's answer to an address it doesn't trust. It arrives at the
+# playability check, before a PO token is asked for and before a challenge
+# exists to solve, so neither the provider nor the solver in app/ytdlp.py ever
+# gets a turn — only a cookie gets past it.
+_BOT_CHECK_RE = re.compile(
+    r"Sign in to confirm you.{0,3}re not a bot|LOGIN_REQUIRED", re.IGNORECASE
+)
+
+_BOT_CHECK_MESSAGE = (
+    "YouTube asked this server to sign in to confirm it is not a bot, so the "
+    "audio could not be fetched. Datacenter and VPN addresses get this long "
+    "before a home connection does. Point YTDLP_COOKIEFILE at a cookies.txt "
+    "exported from a signed-in throwaway account to get past it."
+)
+
+
 class Cancelled(Exception):
     """The caller asked for this download to stop. Not a failure.
 
@@ -468,6 +484,7 @@ def download_track(
 
     failed_urls: set[str] = set()
     last_error: Exception | None = None
+    bot_checked = False
     for attempt in range(attempts):
         if attempt:
             on_progress("retrying", 0.0)
@@ -509,8 +526,15 @@ def download_track(
             raise
         except Exception as exc:
             last_error = exc
+            if _BOT_CHECK_RE.search(str(exc)):
+                bot_checked = True
             if url:
                 failed_urls.add(url)
+    # The last attempt searches SoundCloud, so `last_error` is whatever that
+    # unrelated upload happened to say — "This video is DRM protected", most
+    # often. Reporting it verbatim hides the one cause an operator can act on.
+    if bot_checked:
+        raise DownloadError(_BOT_CHECK_MESSAGE) from last_error
     raise DownloadError(
         f"Failed after {attempts} attempts: {last_error}"
     ) from last_error

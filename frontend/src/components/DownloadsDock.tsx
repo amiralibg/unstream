@@ -7,6 +7,7 @@ import {
   CircleSlash,
   CircleStop,
   Download,
+  FolderOpen,
   LoaderCircle,
   TriangleAlert,
   X,
@@ -20,6 +21,7 @@ import {
   type Job,
   type JobTrack,
 } from '../lib/api'
+import { isDesktop, revealFile, openFolder } from '../lib/desktop'
 import { useDownloads, type DownloadEntry } from '../lib/downloads'
 import { faNumerals, useMessages, useStartAlign } from '../lib/i18n'
 import { useToast } from '../lib/toast'
@@ -99,16 +101,33 @@ function TrackLine({
             ext={ext}
             size="compact"
           />
-          <a
-            href={trackFileUrl(entry.jobId, state.id)}
-            download
-            title={m.dock.downloadFile(title, ext)}
-            aria-label={m.dock.downloadFileLong(title, ext)}
-            className="tap-target flex shrink-0 items-center gap-1 rounded-ctl border border-ink-600 px-2 py-0.5 text-micro font-medium text-lime-flash transition hover:border-lime-flash/50 hover:bg-ink-800"
-          >
-            <Download className="size-3" />
-            {ext}
-          </a>
+            {isDesktop() ? (
+            <button
+              type="button"
+              onClick={() => {
+                if (state.path) {
+                  revealFile(state.path)
+                }
+              }}
+              title={m.dock.revealInFolder(title)}
+              aria-label={m.dock.revealInFolder(title)}
+              className="tap-target flex shrink-0 items-center gap-1 rounded-ctl border border-ink-600 px-2 py-0.5 text-micro font-medium text-lime-flash transition hover:border-lime-flash/50 hover:bg-ink-800"
+            >
+              <FolderOpen className="size-3" />
+              {ext}
+            </button>
+          ) : (
+            <a
+              href={trackFileUrl(entry.jobId, state.id)}
+              download
+              title={m.dock.downloadFile(title, ext)}
+              aria-label={m.dock.downloadFileLong(title, ext)}
+              className="tap-target flex shrink-0 items-center gap-1 rounded-ctl border border-ink-600 px-2 py-0.5 text-micro font-medium text-lime-flash transition hover:border-lime-flash/50 hover:bg-ink-800"
+            >
+              <Download className="size-3" />
+              {ext}
+            </a>
+          )}
         </>
       ) : state.status === 'error' ? (
         <span className="text-xs text-danger">{m.dock.failed}</span>
@@ -237,15 +256,34 @@ function JobCard({ entry, capped = true }: { entry: DownloadEntry; capped?: bool
           {qualityLabel(entry.quality, m)}
         </span>
         {showZip && (
-          <a
-            href={jobZipUrl(entry.jobId)}
-            download
-            title={m.dock.zip}
-            aria-label={m.dock.zipLong}
-            className="tap-target grid size-7 shrink-0 place-items-center rounded-ctl border border-ink-600 text-ink-100 transition hover:border-lime-flash/50 hover:text-lime-flash"
-          >
-            <Archive className="size-3.5" />
-          </a>
+          isDesktop() ? (
+            <button
+              type="button"
+              onClick={() => {
+                const firstDone = entry.job?.tracks.find((t) => t.path)
+                if (firstDone?.path) {
+                  revealFile(firstDone.path)
+                } else if (entry.job?.dir) {
+                  openFolder(entry.job.dir)
+                }
+              }}
+              title={m.dock.openFolder}
+              aria-label={m.dock.openFolder}
+              className="tap-target grid size-7 shrink-0 place-items-center rounded-ctl border border-ink-600 text-ink-100 transition hover:border-lime-flash/50 hover:text-lime-flash"
+            >
+              <FolderOpen className="size-3.5" />
+            </button>
+          ) : (
+            <a
+              href={jobZipUrl(entry.jobId)}
+              download
+              title={m.dock.zip}
+              aria-label={m.dock.zipLong}
+              className="tap-target grid size-7 shrink-0 place-items-center rounded-ctl border border-ink-600 text-ink-100 transition hover:border-lime-flash/50 hover:text-lime-flash"
+            >
+              <Archive className="size-3.5" />
+            </a>
+          )
         )}
         {finished ? (
           <button

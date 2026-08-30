@@ -28,7 +28,17 @@ from pathlib import Path
 from . import analytics, downloader
 from .models import Track
 
-DOWNLOADS_DIR = Path(__file__).resolve().parent.parent / "downloads"
+DOWNLOADS_DIR = Path(
+    os.getenv("UNSTREAM_DOWNLOADS_DIR", Path(__file__).resolve().parent.parent / "downloads")
+)
+
+
+def set_downloads_dir(path: str | Path) -> str:
+    global DOWNLOADS_DIR
+    p = Path(path).resolve()
+    p.mkdir(parents=True, exist_ok=True)
+    DOWNLOADS_DIR = p
+    return str(DOWNLOADS_DIR)
 
 # 0 keeps finished downloads forever. The default suits a server whose disk
 # is shared with strangers; it is the wrong default for someone downloading
@@ -79,6 +89,7 @@ class TrackState:
             "error": self.error,
             # "mp3" / "m4a" / "opus" — the UI labels its save link with it.
             "ext": self.file_path.suffix.lstrip(".") if self.file_path else None,
+            "path": str(self.file_path.resolve()) if self.file_path else None,
         }
 
 
@@ -123,6 +134,7 @@ class Job:
             "id": self.id,
             "name": self.name,
             "quality": self.quality,
+            "dir": str(self.dir.resolve()),
             "tracks": states,
             "done": done,
             "failed": failed,

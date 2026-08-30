@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
 import { useMutation } from '@tanstack/react-query'
-import { AudioLines, Link2 as LinkIcon, Search } from 'lucide-react'
+import { AudioLines, Link2 as LinkIcon, Search, X } from 'lucide-react'
 import clsx from 'clsx'
+import { isDesktop } from './lib/desktop'
 import {
   apiError,
   getArtist,
@@ -24,6 +25,7 @@ import { QualityPicker } from './components/QualityPicker'
 import { LyricsToggle } from './components/LyricsToggle'
 import { LanguagePicker } from './components/LanguagePicker'
 import { SettingsSheet } from './components/SettingsSheet'
+import { DesktopTitleBar } from './components/DesktopTitleBar'
 import { SettingsIcon } from './components/icons'
 import { RecentSearches } from './components/RecentSearches'
 import { DownloadsProvider, useDownloads } from './lib/downloads'
@@ -114,6 +116,47 @@ function DownloadNotifier() {
   }, [entries, push, m])
 
   return null
+}
+
+function YouTubeDisabledBanner() {
+  const m = useMessages()
+  const [closed, setClosed] = useState(false)
+  const isYouTubeDisabled =
+    typeof window !== 'undefined' &&
+    (window as unknown as { __UNSTREAM_CONFIG__?: { youtubeDisabled?: boolean } })
+      .__UNSTREAM_CONFIG__?.youtubeDisabled === true
+  const desktop = isDesktop()
+
+  if (!isYouTubeDisabled || desktop || closed) return null
+
+  return (
+    <div className="mb-6 flex flex-wrap items-center justify-between gap-3 rounded-btn border border-lime-flash/30 bg-lime-flash/10 p-3.5 text-xs text-ink-100 animate-fade-up">
+      <div className="flex items-center gap-2.5">
+        <span className="grid size-5 shrink-0 place-items-center rounded-full bg-lime-flash text-[11px] font-bold text-ink-950">
+          !
+        </span>
+        <span className="leading-relaxed">{m.banner.youtubeDisabled}</span>
+      </div>
+      <div className="flex items-center gap-2 shrink-0 ms-auto">
+        <a
+          href="https://github.com/amiralibg/unstream/releases"
+          target="_blank"
+          rel="noreferrer"
+          className="rounded-ctl bg-lime-flash px-3 py-1 text-xs font-bold text-ink-950 transition hover:bg-lime-flash/90 active:scale-95"
+        >
+          {m.banner.getApp}
+        </a>
+        <button
+          type="button"
+          onClick={() => setClosed(true)}
+          aria-label={m.settings.close}
+          className="grid size-7 place-items-center rounded-ctl text-ink-400 hover:bg-ink-800 hover:text-ink-100"
+        >
+          <X className="size-3.5" />
+        </button>
+      </div>
+    </div>
+  )
 }
 
 function Shell() {
@@ -443,8 +486,17 @@ function Shell() {
         : `search:${view.query}`
 
   return (
-    <div className="safe-x flex min-h-screen flex-col bg-ink-950">
-      <header className="mx-auto flex w-full max-w-3xl items-center gap-2.5 px-5 pt-[calc(2rem+var(--safe-top))]">
+    <div className="safe-x flex h-screen flex-col overflow-hidden bg-ink-950">
+      <DesktopTitleBar onOpenSettings={() => setSettingsOpen(true)} />
+
+      <div className="flex-1 min-h-0 overflow-y-auto flex flex-col justify-between">
+        <div>
+          <header
+            className={clsx(
+              'mx-auto flex w-full max-w-3xl items-center gap-2.5 px-5 select-none',
+              isDesktop() ? 'pt-3 pb-1' : 'pt-[calc(1.75rem+var(--safe-top))]',
+            )}
+          >
         {/* With the hero collapsed, the wordmark is the only way back to it —
             and the first thing anyone tries. */}
         <button
@@ -535,16 +587,17 @@ function Shell() {
             )}
           </section>
         ) : (
-          // The hero is a landing state. Its copy answers questions someone has
-          // *before* they try the app ("no account needed"), so once they have
-          // searched it is a screen of read-once marketing between them and
-          // every result. It collapses; the form stays and rises to the top.
           <section
             className={clsx(
               'transition-[padding] duration-300 ease-out-expo',
-              landing ? 'pt-14 pb-10 sm:pt-16 sm:pb-12' : 'pt-6 pb-5',
+              landing
+                ? isDesktop()
+                  ? 'pt-8 pb-4 sm:pt-10 sm:pb-6'
+                  : 'pt-10 pb-8 sm:pt-14 sm:pb-10'
+                : 'pt-4 pb-3',
             )}
           >
+            <YouTubeDisabledBanner />
             {/* grid-rows 1fr→0fr is the one way to transition to height:auto;
                 the inner wrapper does the clipping. */}
             <Collapsible open={landing}>
@@ -628,10 +681,10 @@ function Shell() {
         )}
       </main>
 
-      <footer className="mx-auto w-full max-w-3xl px-5 pb-[calc(2.5rem+var(--safe-bottom))]">
+      <footer className="mx-auto w-full max-w-3xl px-5 py-4 shrink-0">
         <div
           dir="ltr"
-          className="mt-5 flex flex-wrap items-center justify-center gap-x-1.5 gap-y-2 text-sm text-ink-400"
+          className="flex flex-wrap items-center justify-center gap-x-1.5 gap-y-2 text-sm text-ink-400"
         >
           <span>Built by</span>
           <a
@@ -665,6 +718,8 @@ function Shell() {
           </a>
         </div>
       </footer>
+      </div>
+      </div>
 
       <DownloadNotifier />
       <DownloadsDock />

@@ -144,6 +144,8 @@ def status() -> dict:
         # nowhere to put a writable copy, and the cookie is being ignored
         # rather than crashing every extraction on the way out.
         "cookiefile_live": COOKIEFILE_LIVE or None,
+        "youtube_disabled": os.getenv("UNSTREAM_YOUTUBE_DISABLED", "").lower()
+        in ("1", "true", "yes"),
     }
 
 
@@ -157,7 +159,7 @@ def _js_runtime() -> str | None:
 
 
 _YOUTUBE_RE = re.compile(
-    r"(?:music\.|www\.|m\.)?(?:youtube\.com/(?:watch\?|playlist\?)|youtu\.be/)"
+    r"(?:music\.|www\.|m\.)?(?:youtube\.com/(?:watch\?|playlist\?|shorts/)|youtu\.be/)"
 )
 _SOUNDCLOUD_RE = re.compile(r"(?:www\.|m\.|on\.)?soundcloud\.com/")
 

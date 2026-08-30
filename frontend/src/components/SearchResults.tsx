@@ -10,6 +10,7 @@ import {
   useStartAlign,
 } from '../lib/i18n'
 import type { Messages } from '../lib/locales/en'
+import { isDesktop } from '../lib/desktop'
 import { QuickDownload } from './QuickDownload'
 
 interface Props {
@@ -279,7 +280,7 @@ export function SearchResults({ query, results, hasMore, loadingMore, onLoadMore
         .filter(({ kind }) => tab === 'all' || tab === kind)
         .map(({ kind, icon: Icon, preview }) => {
           const items = grouped.get(kind)!
-          const shown = tab === 'all' ? items.slice(0, preview) : items
+          const shown = tab === 'all' && !isDesktop() ? items.slice(0, preview) : items
           const hidden = items.length - shown.length
           return (
             <div key={kind} className="border-b border-ink-800 last:border-b-0">

@@ -1,45 +1,118 @@
-import { X } from 'lucide-react'
-import { useMessages } from '../lib/i18n'
+import { useEffect, useState } from 'react'
+import { FolderOpen, RefreshCw } from 'lucide-react'
+import clsx from 'clsx'
+import { LanguagePicker } from './LanguagePicker'
 import { LyricsToggle } from './LyricsToggle'
 import { QualityPicker } from './QualityPicker'
-import { LanguagePicker } from './LanguagePicker'
 import { Sheet } from './Sheet'
+import { useMessages } from '../lib/i18n'
+import {
+  isDesktop,
+  getDownloadsDir,
+  pickDownloadsDir,
+  getDesktopInfo,
+  checkForAppUpdates,
+  type DesktopInfo,
+} from '../lib/desktop'
 
-/** The header's three preferences, on the layouts too narrow to hold them.
- *
- *  The same three components the wide header uses, not phone-only copies of
- *  them — otherwise the next quality option would have to be added twice.
- *  `w-full justify-between` is all they need to become rows. */
+/** The header's preferences and desktop options. */
 export function SettingsSheet({ onClose }: { onClose: () => void }) {
   const m = useMessages()
+  const desktop = isDesktop()
+  const [downloadsDir, setDownloadsDir] = useState<string>('')
+  const [info, setInfo] = useState<DesktopInfo | null>(null)
+  const [updateStatus, setUpdateStatus] = useState<string | null>(null)
+  const [checkingUpdate, setCheckingUpdate] = useState(false)
+
+  useEffect(() => {
+    if (desktop) {
+      getDownloadsDir().then(setDownloadsDir)
+      getDesktopInfo().then(setInfo)
+    }
+  }, [desktop])
+
+  const handlePickFolder = async () => {
+    const picked = await pickDownloadsDir()
+    if (picked) {
+      setDownloadsDir(picked)
+    }
+  }
+
+  const handleCheckUpdate = async () => {
+    setCheckingUpdate(true)
+    setUpdateStatus(null)
+    try {
+      const res = await checkForAppUpdates()
+      if (res?.available && res.version) {
+        setUpdateStatus(m.settings.updateAvailable(res.version))
+      } else {
+        setUpdateStatus(m.settings.upToDate)
+      }
+    } catch {
+      setUpdateStatus(null)
+    } finally {
+      setCheckingUpdate(false)
+    }
+  }
 
   return (
-    <Sheet label={m.settings.label} onClose={onClose} width="sm:w-[min(24rem,calc(100vw-2.5rem))]">
-      <header className="flex shrink-0 items-center gap-3 border-b border-ink-800 px-5 py-3.5">
-        <h2 className="flex-1 font-display text-body font-bold text-ink-100">{m.settings.label}</h2>
-        <button
-          onClick={onClose}
-          aria-label={m.settings.close}
-          className="tap-target grid size-9 shrink-0 place-items-center rounded-btn text-ink-400 transition duration-200 hover:bg-ink-800 hover:text-ink-100 active:scale-90"
-        >
-          <X className="size-4" />
-        </button>
-      </header>
-
-      <div className="min-h-0 flex-auto overflow-y-auto overscroll-contain px-5 py-2">
-        {/* `flex-wrap`: the quality strip at coarse-pointer sizes nearly fills
-            a 320px phone beside its label, and a row that cannot fit must drop
-            to a second line rather than scroll sideways. */}
+    <Sheet label={m.settings.label} onClose={onClose}>
+      <div className="space-y-6">
         <div className="divide-y divide-ink-800">
-          <div className="py-4">
-            <LyricsToggle className="w-full flex-wrap justify-between gap-y-3" />
+          <div className="py-4 first:pt-0">
+            <LanguagePicker />
           </div>
+
           <div className="py-4">
-            <QualityPicker className="w-full flex-wrap justify-between gap-y-3" />
+            <QualityPicker />
           </div>
+
           <div className="py-4">
-            <LanguagePicker className="w-full flex-wrap justify-between gap-y-3" />
+            <LyricsToggle />
           </div>
+
+          {desktop && (
+            <>
+              <div className="py-4 space-y-2.5">
+                <div className="flex items-center justify-between">
+                  <span className="text-body font-medium text-ink-200">
+                    {m.settings.downloadsFolder}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={handlePickFolder}
+                    className="tap-target flex items-center gap-1.5 rounded-ctl border border-ink-700 px-2.5 py-1 text-xs font-medium text-ink-200 transition hover:border-lime-flash/50 hover:bg-ink-800 hover:text-lime-flash"
+                  >
+                    <FolderOpen className="size-3.5" />
+                    {m.settings.changeFolder}
+                  </button>
+                </div>
+                <p className="rounded-ctl bg-ink-900/80 p-2 text-micro text-ink-300 break-all font-mono border border-ink-800">
+                  {downloadsDir || '...'}
+                </p>
+              </div>
+
+              <div className="py-4 space-y-1.5 text-xs text-ink-400">
+                <div className="flex items-center justify-between">
+                  <span>{info?.version ? m.settings.appVersion(info.version) : ''}</span>
+                  <button
+                    type="button"
+                    onClick={handleCheckUpdate}
+                    disabled={checkingUpdate}
+                    className="tap-target flex items-center gap-1.5 rounded-ctl border border-ink-700 px-2 py-1 text-xs font-medium text-ink-300 transition hover:bg-ink-800 hover:text-ink-100 disabled:opacity-50"
+                  >
+                    <RefreshCw className={clsx('size-3', checkingUpdate && 'animate-spin')} />
+                    {checkingUpdate ? m.settings.checkingUpdates : m.settings.checkUpdates}
+                  </button>
+                </div>
+                {updateStatus && (
+                  <p className="text-micro text-lime-flash font-medium">
+                    {updateStatus}
+                  </p>
+                )}
+              </div>
+            </>
+          )}
         </div>
       </div>
     </Sheet>

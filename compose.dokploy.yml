@@ -56,6 +56,7 @@ services:
       # the server makes, and YouTube bans accounts for that.
       - YTDLP_COOKIEFILE=${YTDLP_COOKIEFILE:-/app/cookies.txt}
       - ADMIN_TOKEN=${ADMIN_TOKEN:-}
+      - UNSTREAM_YOUTUBE_DISABLED=${UNSTREAM_YOUTUBE_DISABLED:-false}
       # 210 = Tehran, so "today" on the dashboard matches today here.
       - ANALYTICS_UTC_OFFSET_MINUTES=${ANALYTICS_UTC_OFFSET_MINUTES:-210}
       - ANALYTICS_RETENTION_DAYS=${ANALYTICS_RETENTION_DAYS:-90}

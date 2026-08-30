@@ -35,6 +35,29 @@ const en = {
     label: 'Settings',
     open: 'Open settings',
     close: 'Close settings',
+    downloadsFolder: 'Downloads folder',
+    downloadsLocation: 'Download destination',
+    changeFolder: 'Change folder',
+    openInFinder: 'Open folder',
+    resetDefault: 'Reset to default',
+    defaultFolderHint: 'Default: ~/Music/Unstream',
+    folderSaved: 'Folder updated',
+    appVersion: (v: string) => `App version ${v}`,
+    ytdlpVersion: (v: string) => `yt-dlp ${v}`,
+    serverUrl: 'Server URL',
+    serverUrlHint: 'Metadata & search server',
+    saveServer: 'Save',
+    resetServer: 'Reset',
+    checkUpdates: 'Check for updates',
+    checkingUpdates: 'Checking for updates…',
+    upToDate: 'Up to date',
+    updateAvailable: (v: string) => `Update available (${v})`,
+  },
+
+  banner: {
+    youtubeDisabled:
+      'YouTube downloads are disabled on this instance. Use the Unstream desktop app for unlimited local downloads.',
+    getApp: 'Get Desktop App',
   },
 
   /** The document's own metadata — `<title>`, the description, Open Graph and
@@ -264,6 +287,9 @@ const en = {
     starting: 'Starting…',
     downloadFile: (title: string, ext: string) => `Download ${title}.${ext}`,
     downloadFileLong: (title: string, ext: string) => `Download ${title} as ${ext}`,
+    revealInFolder: (title: string) => `Reveal ${title} in folder`,
+    playTrack: (title: string) => `Play ${title}`,
+    openFolder: 'Open downloads folder',
     failed: 'Failed',
     deleted: 'Deleted',
     /** Stopping a job in progress. Whatever has already finished is kept, so
