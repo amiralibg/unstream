@@ -17,14 +17,13 @@
         "title": "Unstream",
         "width": 1120,
         "height": 780,
-        "minWidth": 800,
-        "minHeight": 600,
+        "minWidth": 640,
+        "minHeight": 540,
         "center": true,
-        "decorations": false,
+        "decorations": true,
         "resizable": true,
         "titleBarStyle": "Overlay",
         "hiddenTitle": true,
-        "shadow": true,
         "dragDropEnabled": true
       }
     ],

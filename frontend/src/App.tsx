@@ -302,6 +302,7 @@ function Shell() {
   const [settingsOpen, setSettingsOpen] = useState(false)
 
   const m = useMessages()
+  const desktopMode = isDesktop()
   const { Back, Forward, backNudge, forwardNudge } = useDirectional()
 
   // Set when this page load came from a shared link. Landing straight in a
@@ -594,7 +595,7 @@ function Shell() {
   )
 
   return (
-    <div className="safe-x flex h-screen flex-col overflow-hidden bg-ink-950">
+    <div className={clsx('safe-x flex h-screen flex-col overflow-hidden', desktopMode ? 'bg-[#0a0a0a]' : 'bg-ink-950')}>
       <DesktopIntegrations onUrl={handleDesktopUrl} />
       <DesktopTitleBar onOpenSettings={() => setSettingsOpen(true)} />
       <OfflineBanner />
@@ -604,7 +605,7 @@ function Shell() {
           <header
             className={clsx(
               'mx-auto flex w-full max-w-3xl items-center gap-2.5 px-5 select-none',
-              isDesktop() ? 'pt-3 pb-1' : 'pt-[calc(1.75rem+var(--safe-top))]',
+              desktopMode ? 'pt-2.5 pb-2' : 'pt-[calc(1.75rem+var(--safe-top))]',
             )}
           >
         {/* With the hero collapsed, the wordmark is the only way back to it —
@@ -701,8 +702,8 @@ function Shell() {
             className={clsx(
               'transition-[padding] duration-300 ease-out-expo',
               landing
-                ? isDesktop()
-                  ? 'pt-8 pb-4 sm:pt-10 sm:pb-6'
+                ? desktopMode
+                  ? 'pt-6 pb-3'
                   : 'pt-10 pb-8 sm:pt-14 sm:pb-10'
                 : 'pt-4 pb-3',
             )}
@@ -711,12 +712,22 @@ function Shell() {
             {/* grid-rows 1fr→0fr is the one way to transition to height:auto;
                 the inner wrapper does the clipping. */}
             <Collapsible open={landing}>
-              <h1 className="animate-fade-up font-display text-[clamp(2.5rem,7.5vw,4.5rem)] leading-[1.15] font-bold text-balance">
+              <h1
+                className={clsx(
+                  'animate-fade-up font-display font-bold text-balance leading-[1.15]',
+                  desktopMode ? 'text-[clamp(2rem,4vw,3rem)]' : 'text-[clamp(2.5rem,7.5vw,4.5rem)]',
+                )}
+              >
                 {m.hero.titleLine1}
                 <br />
                 <span className="text-lime-flash">{m.hero.titleLine2}</span>
               </h1>
-              <p className="mt-5 max-w-md animate-fade-up text-body leading-relaxed text-ink-300 [animation-delay:80ms]">
+              <p
+                className={clsx(
+                  'max-w-md animate-fade-up leading-relaxed text-ink-300 [animation-delay:80ms]',
+                  desktopMode ? 'mt-3 text-sm' : 'mt-5 text-body',
+                )}
+              >
                 {m.hero.blurb}
               </p>
             </Collapsible>
@@ -791,43 +802,45 @@ function Shell() {
         )}
       </main>
 
-      <footer className="mx-auto w-full max-w-3xl px-5 py-4 shrink-0">
-        <div
-          dir="ltr"
-          className="flex flex-wrap items-center justify-center gap-x-1.5 gap-y-2 text-sm text-ink-400"
-        >
-          <span>Built by</span>
-          <a
-            href="https://x.com/_amiralibgi"
-            target="_blank"
-            rel="noreferrer"
-            className="flex items-center gap-1.5 font-medium text-ink-300 underline decoration-ink-600 underline-offset-2 transition hover:text-lime-flash hover:decoration-lime-flash/60"
+      {!desktopMode && (
+        <footer className="mx-auto w-full max-w-3xl px-5 py-4 shrink-0">
+          <div
+            dir="ltr"
+            className="flex flex-wrap items-center justify-center gap-x-1.5 gap-y-2 text-sm text-ink-400"
           >
-            <img
-              src="/amirali.jpg"
-              alt=""
-              loading="lazy"
-              className="size-5 rounded-full object-cover"
-            />
-            amiralibgi
-          </a>
-          <span>and</span>
-          <a
-            href="https://x.com/yazdanctx"
-            target="_blank"
-            rel="noreferrer"
-            className="flex items-center gap-1.5 font-medium text-ink-300 underline decoration-ink-600 underline-offset-2 transition hover:text-lime-flash hover:decoration-lime-flash/60"
-          >
-            <img
-              src="/yazdan.jpg"
-              alt=""
-              loading="lazy"
-              className="size-5 rounded-full object-cover"
-            />
-            yazdanctx
-          </a>
-        </div>
-      </footer>
+            <span>Built by</span>
+            <a
+              href="https://x.com/_amiralibgi"
+              target="_blank"
+              rel="noreferrer"
+              className="flex items-center gap-1.5 font-medium text-ink-300 underline decoration-ink-600 underline-offset-2 transition hover:text-lime-flash hover:decoration-lime-flash/60"
+            >
+              <img
+                src="/amirali.jpg"
+                alt=""
+                loading="lazy"
+                className="size-5 rounded-full object-cover"
+              />
+              amiralibgi
+            </a>
+            <span>and</span>
+            <a
+              href="https://x.com/yazdanctx"
+              target="_blank"
+              rel="noreferrer"
+              className="flex items-center gap-1.5 font-medium text-ink-300 underline decoration-ink-600 underline-offset-2 transition hover:text-lime-flash hover:decoration-lime-flash/60"
+            >
+              <img
+                src="/yazdan.jpg"
+                alt=""
+                loading="lazy"
+                className="size-5 rounded-full object-cover"
+              />
+              yazdanctx
+            </a>
+          </div>
+        </footer>
+      )}
       </div>
       </div>
 
