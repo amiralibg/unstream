@@ -9,6 +9,7 @@ import {
   Download,
   FolderOpen,
   LoaderCircle,
+  RefreshCw,
   TriangleAlert,
   X,
 } from 'lucide-react'
@@ -21,7 +22,7 @@ import {
   type Job,
   type JobTrack,
 } from '../lib/api'
-import { isDesktop, revealFile, openFolder } from '../lib/desktop'
+import { isDesktop, revealFile, openFolder, setWindowProgress } from '../lib/desktop'
 import { useDownloads, type DownloadEntry } from '../lib/downloads'
 import { faNumerals, useMessages, useStartAlign } from '../lib/i18n'
 import { useToast } from '../lib/toast'
@@ -55,6 +56,9 @@ function TrackLine({
 }) {
   const m = useMessages()
   const startAlign = useStartAlign()
+  const { retryOne } = useDownloads()
+  const { push } = useToast()
+  const [retrying, setRetrying] = useState(false)
   const track = entry.tracks.find((t) => t.id === state.id)
   const title = track ? track.title : state.id
   const available = state.status === 'done' && !entry.expired
@@ -62,6 +66,17 @@ function TrackLine({
   // itself is the only honest source for this label.
   const ext = state.ext ?? 'mp3'
   const active = isActive(state.status)
+
+  const onRetry = async () => {
+    setRetrying(true)
+    try {
+      await retryOne(entry.jobId, state.id)
+    } catch (err) {
+      push(apiError(err, m), 'error')
+    } finally {
+      setRetrying(false)
+    }
+  }
 
   return (
     <li className="relative flex items-center gap-2.5 px-4 py-1.5">
@@ -130,7 +145,16 @@ function TrackLine({
           )}
         </>
       ) : state.status === 'error' ? (
-        <span className="text-xs text-danger">{m.dock.failed}</span>
+        <button
+          type="button"
+          onClick={onRetry}
+          disabled={retrying}
+          className="tap-target flex shrink-0 items-center gap-1 rounded-ctl border border-danger/40 px-2 py-0.5 text-micro font-medium text-danger transition hover:bg-danger/10 disabled:opacity-50"
+          title={state.error ?? m.dock.failed}
+        >
+          {retrying ? <LoaderCircle className="size-3 animate-spin" /> : <RefreshCw className="size-3" />}
+          {m.dock.retry ?? 'Retry'}
+        </button>
       ) : state.status === 'cancelled' ? (
         <span className="text-xs text-ink-400">{m.dock.cancelled}</span>
       ) : entry.expired ? (
@@ -167,7 +191,7 @@ function TrackLine({
 }
 
 function JobCard({ entry, capped = true }: { entry: DownloadEntry; capped?: boolean }) {
-  const { cancel, dismiss } = useDownloads()
+  const { cancel, dismiss, retry } = useDownloads()
   const { push } = useToast()
   const m = useMessages()
   const startAlign = useStartAlign()
@@ -188,6 +212,14 @@ function JobCard({ entry, capped = true }: { entry: DownloadEntry; capped?: bool
   const onCancel = async () => {
     try {
       await cancel(entry.jobId)
+    } catch (err) {
+      push(apiError(err, m), 'error')
+    }
+  }
+
+  const onRetryAll = async () => {
+    try {
+      await retry(entry.jobId)
     } catch (err) {
       push(apiError(err, m), 'error')
     }
@@ -284,6 +316,16 @@ function JobCard({ entry, capped = true }: { entry: DownloadEntry; capped?: bool
               <Archive className="size-3.5" />
             </a>
           )
+        )}
+        {finished && failed > 0 && !expired && (
+          <button
+            onClick={onRetryAll}
+            title={m.dock.retry ?? 'Retry failed'}
+            className="tap-target flex items-center gap-1 rounded-ctl border border-ink-600 px-2 py-1 text-micro font-medium text-lime-flash transition hover:border-lime-flash/50 hover:bg-ink-800"
+          >
+            <RefreshCw className="size-3" />
+            {m.dock.retry ?? 'Retry'}
+          </button>
         )}
         {finished ? (
           <button
@@ -484,6 +526,26 @@ export function DownloadsDock() {
   const { entries, activeCount, panelOpen, setPanelOpen } = useDownloads()
   const isDesktop = useIsDesktop()
   const m = useMessages()
+
+  // Native window progress bar (macOS dock / Windows taskbar)
+  const totalsForProgress = entries.reduce(
+    (acc, e) => ({
+      settled: acc.settled + (e.job ? e.job.done + e.job.failed + inFlightFraction(e.job) : 0),
+      total: acc.total + (e.job?.total ?? e.tracks.length),
+    }),
+    { settled: 0, total: 0 },
+  )
+  const globalFraction = totalsForProgress.total
+    ? Math.min(1, totalsForProgress.settled / totalsForProgress.total)
+    : 0
+  useEffect(() => {
+    if (!isDesktop) return
+    if (activeCount > 0) {
+      void setWindowProgress(globalFraction)
+    } else {
+      void setWindowProgress(null)
+    }
+  }, [activeCount, globalFraction, isDesktop])
 
   // Toasts are full width on phones, so whatever this pins to the bottom edge
   // ends up under them. --dock-lift says how much room to leave, and this is

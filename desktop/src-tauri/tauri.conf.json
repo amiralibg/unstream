@@ -4,7 +4,8 @@
   "version": "0.0.1",
   "identifier": "xyz.amiralibg.unstream",
   "build": {
-    "beforeDevCommand": "npm --prefix ../frontend run build",
+    "devUrl": "http://localhost:5173",
+    "beforeDevCommand": "npm --prefix ../frontend run dev -- --port 5173 --strictPort",
     "beforeBuildCommand": "npm --prefix ../frontend run build",
     "frontendDist": "../../frontend/dist"
   },
@@ -12,16 +13,19 @@
     "withGlobalTauri": true,
     "windows": [
       {
+        "label": "main",
         "title": "Unstream",
         "width": 1120,
         "height": 780,
-        "minWidth": 640,
-        "minHeight": 540,
+        "minWidth": 800,
+        "minHeight": 600,
         "center": true,
-        "decorations": true,
+        "decorations": false,
         "resizable": true,
         "titleBarStyle": "Overlay",
-        "hiddenTitle": true
+        "hiddenTitle": true,
+        "shadow": true,
+        "dragDropEnabled": true
       }
     ],
     "security": {

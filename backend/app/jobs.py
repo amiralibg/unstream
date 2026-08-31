@@ -325,6 +325,50 @@ def cancel(job: Job) -> int:
     return stopped
 
 
+def retry_track(job: Job, track_id: str) -> bool:
+    """Re-queue a single failed/cancelled track for retry. Returns True if queued."""
+    with job.lock:
+        state = job.tracks.get(track_id)
+        if not state or state.status not in ("error", "cancelled"):
+            return False
+        # Don't retry if whole job was cancelled via stopped flag — clear it if all were cancelled
+        # Only allow retry when job isn't globally stopped or we reset for this track
+        state.status = "queued"
+        state.progress = 0.0
+        state.error = None
+        # If job was fully stopped, allow this track to run again
+        if job.stopped.is_set():
+            # Only clear stopped if no other tracks are still cancelled due to global cancel
+            # Check if all non-done tracks are being retried — for single retry we create a new event
+            # We use a new logic: create a fresh event for this retry by clearing and letting _run_track check
+            # But we need per-track cancellation — for now clear global stopped if retrying
+            all_settled = all(s.status in SETTLED for s in job.tracks.values())
+            if not all_settled:
+                job.stopped.clear()
+    _executor.submit(_run_track, job, state)
+    return True
+
+
+def retry_failed(job: Job) -> int:
+    """Re-queue all failed tracks in a job. Returns count queued."""
+    count = 0
+    with job.lock:
+        failed_ids = [tid for tid, s in job.tracks.items() if s.status == "error"]
+        if not failed_ids:
+            return 0
+        if job.stopped.is_set():
+            job.stopped.clear()
+        for tid in failed_ids:
+            s = job.tracks[tid]
+            s.status = "queued"
+            s.progress = 0.0
+            s.error = None
+            count += 1
+    for tid in failed_ids:
+        _executor.submit(_run_track, job, job.tracks[tid])
+    return count
+
+
 def _measure(path: Path) -> tuple[float, int] | None:
     """(mtime of the newest file, total bytes) for one job directory."""
     try:

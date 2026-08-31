@@ -520,6 +520,44 @@ def cancel_job(job_id: str, request: Request) -> dict:
     return job.as_dict()
 
 
+@app.post("/api/jobs/{job_id}/retry")
+def retry_job(job_id: str, request: Request) -> dict:
+    """Retry all failed tracks in a job."""
+    job = jobs.get(job_id)
+    if not job:
+        raise HTTPException(status_code=404, detail="Unknown job")
+    count = jobs.retry_failed(job)
+    if count == 0:
+        raise HTTPException(status_code=400, detail="No failed tracks to retry")
+    analytics.record(
+        "download_retry",
+        visitor=limits.visitor(request),
+        detail=job.quality,
+        label=job.name,
+        value=count,
+    )
+    return job.as_dict()
+
+
+@app.post("/api/jobs/{job_id}/tracks/{track_id}/retry")
+def retry_track(job_id: str, track_id: str, request: Request) -> dict:
+    """Retry a single failed track."""
+    job = jobs.get(job_id)
+    if not job:
+        raise HTTPException(status_code=404, detail="Unknown job")
+    ok = jobs.retry_track(job, track_id)
+    if not ok:
+        raise HTTPException(status_code=400, detail="Track not retryable")
+    analytics.record(
+        "download_retry",
+        visitor=limits.visitor(request),
+        detail=job.quality,
+        label=job.name,
+        value=1,
+    )
+    return job.as_dict()
+
+
 @app.get("/api/jobs/{job_id}/tracks/{track_id}/file")
 def track_file(job_id: str, track_id: str, request: Request) -> FileResponse:
     limits.enforce("file", request)

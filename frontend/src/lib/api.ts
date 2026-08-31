@@ -276,6 +276,16 @@ export async function cancelJob(jobId: string): Promise<Job> {
   return data
 }
 
+export async function retryJob(jobId: string): Promise<Job> {
+  const { data } = await client.post<Job>(`/jobs/${jobId}/retry`)
+  return data
+}
+
+export async function retryTrack(jobId: string, trackId: string): Promise<Job> {
+  const { data } = await client.post<Job>(`/jobs/${jobId}/tracks/${trackId}/retry`)
+  return data
+}
+
 export const trackFileUrl = (jobId: string, trackId: string) =>
   `/api/jobs/${jobId}/tracks/${trackId}/file`
 

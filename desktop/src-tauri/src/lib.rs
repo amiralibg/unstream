@@ -7,7 +7,7 @@ use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
 use serde::{Deserialize, Serialize};
-use tauri::{AppHandle, Manager, State, Url};
+use tauri::{AppHandle, Emitter, Manager, State, Url};
 
 #[derive(Default)]
 pub struct AppState {
@@ -23,6 +23,11 @@ struct SavedSettings {
 }
 
 fn get_free_port() -> u16 {
+    // In dev (debug) use fixed 8000 so Vite's /api proxy stays valid.
+    // In release use a random free port to avoid collisions with other apps.
+    if cfg!(debug_assertions) {
+        return 8000;
+    }
     TcpListener::bind("127.0.0.1:0")
         .and_then(|l| l.local_addr())
         .map(|a| a.port())
@@ -58,7 +63,6 @@ fn find_backend_binary(app_handle: &AppHandle) -> PathBuf {
         "unstream-api"
     };
 
-    // 1. Check bundled resource dir (production)
     if let Ok(resource_dir) = app_handle.path().resource_dir() {
         let bundled = resource_dir.join("unstream-api").join(binary_name);
         if bundled.exists() {
@@ -70,7 +74,6 @@ fn find_backend_binary(app_handle: &AppHandle) -> PathBuf {
         }
     }
 
-    // 2. Check development dist path
     let candidates = [
         PathBuf::from("../../backend/dist/unstream-api").join(binary_name),
         PathBuf::from("backend/dist/unstream-api").join(binary_name),
@@ -231,22 +234,23 @@ fn spawn_backend(
 async fn wait_for_health(port: u16, max_retries: u32) -> bool {
     for i in 0..max_retries {
         if let Ok(mut stream) = TcpStream::connect(("127.0.0.1", port)) {
-            let _ = stream.set_read_timeout(Some(Duration::from_millis(500)));
-            let _ = stream.set_write_timeout(Some(Duration::from_millis(500)));
+            let _ = stream.set_read_timeout(Some(Duration::from_millis(800)));
+            let _ = stream.set_write_timeout(Some(Duration::from_millis(800)));
             if stream
                 .write_all(b"GET /health HTTP/1.1\r\nHost: 127.0.0.1\r\nConnection: close\r\n\r\n")
                 .is_ok()
             {
-                let mut buf = [0u8; 128];
+                let mut buf = [0u8; 512];
                 if let Ok(n) = stream.read(&mut buf) {
-                    if n > 0 && std::str::from_utf8(&buf[..n]).unwrap_or("").contains("200 OK") {
+                    let resp = std::str::from_utf8(&buf[..n]).unwrap_or("");
+                    if resp.contains("200") {
                         println!("[Unstream Desktop] Backend healthcheck passed on attempt {}", i + 1);
                         return true;
                     }
                 }
             }
         }
-        tokio::time::sleep(Duration::from_millis(150)).await;
+        tokio::time::sleep(Duration::from_millis(200)).await;
     }
     false
 }
@@ -315,6 +319,38 @@ fn close_window(window: tauri::Window) -> Result<(), String> {
     window.close().map_err(|e| e.to_string())
 }
 
+#[tauri::command]
+fn set_progress_bar(window: tauri::Window, progress: Option<f64>) -> Result<(), String> {
+    use tauri::window::{ProgressBarState, ProgressBarStatus};
+    if let Some(p) = progress {
+        let clamped = p.clamp(0.0, 1.0);
+        window
+            .set_progress_bar(ProgressBarState {
+                status: Some(ProgressBarStatus::Normal),
+                progress: Some((clamped * 100.0) as u64),
+            })
+            .map_err(|e| e.to_string())?;
+    } else {
+        window
+            .set_progress_bar(ProgressBarState {
+                status: Some(ProgressBarStatus::None),
+                progress: None,
+            })
+            .map_err(|e| e.to_string())?;
+    }
+    Ok(())
+}
+
+#[tauri::command]
+fn focus_window(window: tauri::Window) -> Result<(), String> {
+    window.set_focus().map_err(|e| e.to_string())?;
+    #[cfg(target_os = "macos")]
+    {
+        let _ = window.unminimize();
+    }
+    Ok(())
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     let app_state = AppState::default();
@@ -334,9 +370,31 @@ pub fn run() {
     let app_child_cleanup = app_state.backend_child.clone();
 
     tauri::Builder::default()
+        .plugin(tauri_plugin_single_instance::init(|app, args, _cwd| {
+            // Second instance: focus existing window and forward any URL arg
+            if let Some(window) = app.get_webview_window("main") {
+                let _ = window.set_focus();
+                let _ = window.unminimize();
+                // Forward Spotify/Deezer links if passed as CLI arg
+                for arg in args.iter().skip(1) {
+                    if arg.contains("spotify.com")
+                        || arg.contains("deezer.com")
+                        || arg.contains("youtube.com")
+                        || arg.contains("youtu.be")
+                        || arg.contains("soundcloud.com")
+                        || arg.contains("music.apple.com")
+                    {
+                        let _ = window.emit("deep-link", arg.clone());
+                        break;
+                    }
+                }
+            }
+        }))
+        .plugin(tauri_plugin_window_state::Builder::new().build())
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_process::init())
+        .plugin(tauri_plugin_notification::init())
         .plugin(tauri_plugin_updater::Builder::new().build())
         .manage(app_state)
         .setup(|app| {
@@ -345,23 +403,50 @@ pub fn run() {
             let port = get_free_port();
             *state.port.lock().unwrap() = port;
 
+            // Restore deep-link from initial launch args as well
+            let initial_url = std::env::args().skip(1).find(|a| {
+                a.contains("spotify.com")
+                    || a.contains("deezer.com")
+                    || a.contains("youtube.com")
+                    || a.contains("youtu.be")
+                    || a.contains("soundcloud.com")
+                    || a.contains("music.apple.com")
+            });
+
             let child = spawn_backend(&app_handle, &state, port)
                 .expect("Failed to spawn backend process");
             *state.backend_child.lock().unwrap() = Some(child);
 
-            // Health polling & navigation in background async task
+            let is_dev = cfg!(debug_assertions);
             let handle_clone = app_handle.clone();
             tauri::async_runtime::spawn(async move {
-                let ok = wait_for_health(port, 60).await;
+                let ok = wait_for_health(port, 80).await;
                 if ok {
-                    if let Some(window) = handle_clone.get_webview_window("main") {
-                        let target_url = format!("http://127.0.0.1:{}/", port);
+                    if is_dev {
+                        // In dev, Tauri already loads Vite (devUrl). No navigate needed.
+                        // Just forward deep-link via event so frontend can handle it.
+                        if let Some(url_arg) = initial_url {
+                            if let Some(window) = handle_clone.get_webview_window("main") {
+                                let _ = window.emit("deep-link", url_arg);
+                            }
+                        }
+                    } else if let Some(window) = handle_clone.get_webview_window("main") {
+                        let target_url = if let Some(url_arg) = initial_url {
+                            let mut u = Url::parse(&format!("http://127.0.0.1:{}/", port)).unwrap();
+                            u.query_pairs_mut().append_pair("url", &url_arg);
+                            u.to_string()
+                        } else {
+                            format!("http://127.0.0.1:{}/", port)
+                        };
                         if let Ok(url) = Url::parse(&target_url) {
                             let _ = window.navigate(url);
                         }
                     }
                 } else {
                     eprintln!("[Unstream Desktop] Backend failed to become healthy on port {}", port);
+                    if let Some(window) = handle_clone.get_webview_window("main") {
+                        let _ = window.emit("backend-error", "Backend failed to start");
+                    }
                 }
             });
 
@@ -375,13 +460,20 @@ pub fn run() {
             toggle_maximize,
             minimize_window,
             close_window,
+            set_progress_bar,
+            focus_window,
         ])
         .build(tauri::generate_context!())
         .expect("error while building tauri application")
         .run(move |_app_handle, event| {
             if let tauri::RunEvent::Exit = event {
                 if let Some(mut child) = app_child_cleanup.lock().unwrap().take() {
+                    let pid = child.id();
+                    println!("[Unstream Desktop] Stopping backend pid {}", pid);
                     let _ = child.kill();
+                    // Give it a moment to flush DBs
+                    std::thread::sleep(Duration::from_millis(300));
+                    let _ = child.wait();
                 }
             }
         });

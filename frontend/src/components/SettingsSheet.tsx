@@ -12,6 +12,7 @@ import {
   pickDownloadsDir,
   getDesktopInfo,
   checkForAppUpdates,
+  installUpdateAndRelaunch,
   type DesktopInfo,
 } from '../lib/desktop'
 
@@ -23,6 +24,8 @@ export function SettingsSheet({ onClose }: { onClose: () => void }) {
   const [info, setInfo] = useState<DesktopInfo | null>(null)
   const [updateStatus, setUpdateStatus] = useState<string | null>(null)
   const [checkingUpdate, setCheckingUpdate] = useState(false)
+  const [installing, setInstalling] = useState(false)
+  const [updateAvailable, setUpdateAvailable] = useState<{ version: string; body: string } | null>(null)
 
   useEffect(() => {
     if (desktop) {
@@ -41,10 +44,12 @@ export function SettingsSheet({ onClose }: { onClose: () => void }) {
   const handleCheckUpdate = async () => {
     setCheckingUpdate(true)
     setUpdateStatus(null)
+    setUpdateAvailable(null)
     try {
       const res = await checkForAppUpdates()
       if (res?.available && res.version) {
         setUpdateStatus(m.settings.updateAvailable(res.version))
+        setUpdateAvailable({ version: res.version, body: res.body ?? '' })
       } else {
         setUpdateStatus(m.settings.upToDate)
       }
@@ -52,6 +57,17 @@ export function SettingsSheet({ onClose }: { onClose: () => void }) {
       setUpdateStatus(null)
     } finally {
       setCheckingUpdate(false)
+    }
+  }
+
+  const handleInstallUpdate = async () => {
+    setInstalling(true)
+    try {
+      await installUpdateAndRelaunch()
+    } catch {
+      setUpdateStatus(m.settings.updateFailed ?? 'Update failed')
+    } finally {
+      setInstalling(false)
     }
   }
 
@@ -109,6 +125,19 @@ export function SettingsSheet({ onClose }: { onClose: () => void }) {
                   <p className="text-micro text-lime-flash font-medium">
                     {updateStatus}
                   </p>
+                )}
+                {updateAvailable && (
+                  <button
+                    type="button"
+                    onClick={handleInstallUpdate}
+                    disabled={installing}
+                    className="mt-2 flex w-full items-center justify-center gap-1.5 rounded-ctl bg-lime-flash px-3 py-1.5 text-xs font-semibold text-ink-950 transition hover:bg-lime-soft disabled:opacity-50"
+                  >
+                    {installing ? (
+                      <RefreshCw className="size-3 animate-spin" />
+                    ) : null}
+                    {installing ? m.settings.installing ?? 'Installing…' : m.settings.installUpdate ?? 'Install & relaunch'}
+                  </button>
                 )}
               </div>
             </>

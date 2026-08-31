@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
 import { useMutation } from '@tanstack/react-query'
 import { AudioLines, Link2 as LinkIcon, Search, X } from 'lucide-react'
 import clsx from 'clsx'
-import { isDesktop } from './lib/desktop'
+import { isDesktop, notifyDownloadComplete } from './lib/desktop'
 import {
   apiError,
   getArtist,
@@ -105,8 +105,10 @@ function DownloadNotifier() {
           push(m.notify.cancelled(entry.name, done), 'info')
         } else if (done > 0 && failed === 0) {
           push(m.notify.ready(entry.name, done), 'success')
+          if (isDesktop()) void notifyDownloadComplete(entry.name, m.notify.ready(entry.name, done))
         } else if (done > 0) {
           push(m.notify.partial(entry.name, done, failed), 'info')
+          if (isDesktop()) void notifyDownloadComplete(entry.name, m.notify.partial(entry.name, done, failed))
         } else {
           push(m.notify.failed(entry.name), 'error')
         }
@@ -116,6 +118,100 @@ function DownloadNotifier() {
   }, [entries, push, m])
 
   return null
+}
+
+function DesktopIntegrations({
+  onUrl,
+}: {
+  onUrl: (url: string) => void
+}) {
+  const onUrlRef = useRef(onUrl)
+  onUrlRef.current = onUrl
+
+  useEffect(() => {
+    if (!isDesktop()) return
+    let unlistenDeep: (() => void) | undefined
+    let unlistenDrop: (() => void) | undefined
+    let unlistenBackendErr: (() => void) | undefined
+
+    void import('@tauri-apps/api/event').then(({ listen }) => {
+      listen<string>('deep-link', (e) => {
+        const url = typeof e.payload === 'string' ? e.payload : ''
+        if (url) onUrlRef.current(url)
+      }).then((fn) => {
+        unlistenDeep = fn
+      })
+      listen<string>('backend-error', (e) => {
+        console.error('[Desktop] backend-error:', e.payload)
+      }).then((fn) => {
+        unlistenBackendErr = fn
+      })
+    })
+
+    // File drop: Tauri emits tauri://drag-drop with paths
+    void import('@tauri-apps/api/event').then(({ listen }) => {
+      listen<{ paths: string[] }>('tauri://drag-drop', (e) => {
+        const path = e.payload?.paths?.[0]
+        // paths are file paths, not URLs — check if it's a URL string drop via webview
+        if (path) {
+          // ignore file drops; URL drops come via paste or deep-link
+        }
+      }).then((fn) => {
+        unlistenDrop = fn
+      })
+    })
+
+    // Also handle browser-native drop of URLs (more common than Tauri file drop)
+    const onDrop = (ev: DragEvent) => {
+      const url = ev.dataTransfer?.getData('text/plain')?.trim() ?? ''
+      // Also check uri-list
+      const uriList = ev.dataTransfer?.getData('text/uri-list')?.trim() ?? ''
+      const candidate = url || uriList
+      if (candidate && isCatalogUrl(candidate.split('\n')[0].trim())) {
+        ev.preventDefault()
+        onUrlRef.current(candidate.split('\n')[0].trim())
+      }
+    }
+    const onDragOver = (ev: DragEvent) => {
+      const hasUrl = !!ev.dataTransfer?.types.includes('text/plain')
+      if (hasUrl) ev.preventDefault()
+    }
+    window.addEventListener('drop', onDrop)
+    window.addEventListener('dragover', onDragOver)
+
+    return () => {
+      unlistenDeep?.()
+      unlistenDrop?.()
+      unlistenBackendErr?.()
+      window.removeEventListener('drop', onDrop)
+      window.removeEventListener('dragover', onDragOver)
+    }
+  }, [])
+
+  return null
+}
+
+function OfflineBanner() {
+  const [online, setOnline] = useState<boolean>(() =>
+    typeof navigator !== 'undefined' ? navigator.onLine : true,
+  )
+  useEffect(() => {
+    const on = () => setOnline(true)
+    const off = () => setOnline(false)
+    window.addEventListener('online', on)
+    window.addEventListener('offline', off)
+    return () => {
+      window.removeEventListener('online', on)
+      window.removeEventListener('offline', off)
+    }
+  }, [])
+  if (online) return null
+  return (
+    <div className="sticky top-0 z-30 flex items-center justify-center gap-2 bg-danger px-4 py-2 text-xs font-medium text-white">
+      <span className="size-2 animate-pulse rounded-full bg-white" />
+      Offline — downloads will resume when back online
+    </div>
+  )
 }
 
 function YouTubeDisabledBanner() {
@@ -485,9 +581,23 @@ function Shell() {
         ? `artist:${view.artist.id}`
         : `search:${view.query}`
 
+  // Desktop deep-link handler needs to be in Shell to access openCollection/handleSubmit
+  const handleDesktopUrl = useCallback(
+    (url: string) => {
+      if (!isCatalogUrl(url)) return
+      setSharedArrival(null)
+      setRecent(rememberSearch(url))
+      push(m.notify.linkDetected, 'info')
+      openCollection(url, false)
+    },
+    [push, m],
+  )
+
   return (
     <div className="safe-x flex h-screen flex-col overflow-hidden bg-ink-950">
+      <DesktopIntegrations onUrl={handleDesktopUrl} />
       <DesktopTitleBar onOpenSettings={() => setSettingsOpen(true)} />
+      <OfflineBanner />
 
       <div className="flex-1 min-h-0 overflow-y-auto flex flex-col justify-between">
         <div>

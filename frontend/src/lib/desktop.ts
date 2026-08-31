@@ -2,6 +2,11 @@ import { invoke } from '@tauri-apps/api/core'
 import { revealItemInDir, openPath } from '@tauri-apps/plugin-opener'
 import { open } from '@tauri-apps/plugin-dialog'
 import { check } from '@tauri-apps/plugin-updater'
+import {
+  isPermissionGranted,
+  requestPermission,
+  sendNotification,
+} from '@tauri-apps/plugin-notification'
 
 export function isDesktop(): boolean {
   return (
@@ -157,5 +162,57 @@ export async function closeWindow(): Promise<void> {
     await invoke('close_window')
   } catch {
     // fallback
+  }
+}
+
+export async function setWindowProgress(progress: number | null): Promise<void> {
+  if (!isDesktop()) return
+  try {
+    await invoke('set_progress_bar', { progress })
+  } catch {
+    // ignore — not all platforms support it
+  }
+}
+
+export async function focusMainWindow(): Promise<void> {
+  if (!isDesktop()) return
+  try {
+    await invoke('focus_window')
+  } catch {
+    // ignore
+  }
+}
+
+export async function notifyDownloadComplete(
+  title: string,
+  body: string,
+): Promise<void> {
+  if (!isDesktop()) return
+  try {
+    let granted = await isPermissionGranted()
+    if (!granted) {
+      const perm = await requestPermission()
+      granted = perm === 'granted'
+    }
+    if (granted) {
+      sendNotification({ title, body })
+    }
+  } catch {
+    // ignore
+  }
+}
+
+export async function installUpdateAndRelaunch(): Promise<void> {
+  if (!isDesktop()) return
+  try {
+    const update = await check()
+    if (update) {
+      await update.downloadAndInstall()
+      const { relaunch } = await import('@tauri-apps/plugin-process')
+      await relaunch()
+    }
+  } catch (err) {
+    console.error('Update install failed:', err)
+    throw err
   }
 }

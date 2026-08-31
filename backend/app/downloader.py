@@ -106,13 +106,21 @@ def _sibling_outputs(dest: Path) -> list[Path]:
     return [p for p in dest.parent.iterdir() if p.name.startswith(prefix)]
 
 
-def _clean_partials(dest: Path) -> None:
+def _clean_partials(dest: Path, keep_part: bool = False) -> None:
     """Drop leftovers from a failed attempt so a retry starts clean.
 
     A stale .part or half-converted .webm makes yt-dlp resume a broken
     download, which is one way ffmpeg ends up with no mp3 to produce.
+    When `keep_part` is true, `.part` files are preserved so yt-dlp can
+    resume a partial download on retry (critical for large files / flaky
+    connections). Only cancelled downloads should drop everything.
     """
     for path in _sibling_outputs(dest):
+        if keep_part and path.suffix == ".part":
+            continue
+        # also keep .ytdl temp fragments when resuming
+        if keep_part and path.suffix in (".ytdl", ".temp"):
+            continue
         path.unlink(missing_ok=True)
 
 
@@ -505,7 +513,8 @@ def download_track(
 
             if on_source:
                 on_source(url, attempt + 1)
-            _clean_partials(dest)
+            # keep .part on retry so yt-dlp can resume; full clean only on first attempt or cancel
+            _clean_partials(dest, keep_part=attempt > 0)
             on_progress("downloading", 0.0)
             audio = download_audio(
                 url,

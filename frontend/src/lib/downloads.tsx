@@ -14,6 +14,8 @@ import {
   getJobs,
   isQuality,
   resolveUrl,
+  retryJob,
+  retryTrack,
   startDownload,
   type Collection,
   type Job,
@@ -68,6 +70,8 @@ interface DownloadsContextValue {
   startFromResult: (result: SearchResult) => Promise<void>
   /** Stop a running job. Rejects if the server wouldn't; callers report it. */
   cancel: (jobId: string) => Promise<void>
+  retry: (jobId: string) => Promise<void>
+  retryOne: (jobId: string, trackId: string) => Promise<void>
   dismiss: (jobId: string) => void
   /** Latest entry started from this URL — lets CollectionView show inline progress. */
   entryForUrl: (url: string) => DownloadEntry | undefined
@@ -228,6 +232,16 @@ export function DownloadsProvider({ children }: { children: ReactNode }) {
     [patch],
   )
 
+  const retry = useCallback(async (jobId: string) => {
+    const job = await retryJob(jobId)
+    patch(jobId, { job, expired: false, etaSeconds: null })
+  }, [patch])
+
+  const retryOne = useCallback(async (jobId: string, trackId: string) => {
+    const job = await retryTrack(jobId, trackId)
+    patch(jobId, { job, expired: false })
+  }, [patch])
+
   const dismiss = useCallback((jobId: string) => {
     setEntries((prev) => prev.filter((e) => e.jobId !== jobId))
   }, [])
@@ -319,6 +333,8 @@ export function DownloadsProvider({ children }: { children: ReactNode }) {
       start,
       startFromResult,
       cancel,
+      retry,
+      retryOne,
       dismiss,
       entryForUrl,
       entriesForUrl,
@@ -334,6 +350,8 @@ export function DownloadsProvider({ children }: { children: ReactNode }) {
       start,
       startFromResult,
       cancel,
+      retry,
+      retryOne,
       dismiss,
       entryForUrl,
       entriesForUrl,
