@@ -73,7 +73,7 @@ export function SettingsSheet({ onClose }: { onClose: () => void }) {
 
   return (
     <Sheet label={m.settings.label} onClose={onClose}>
-      <div className="space-y-6">
+      <div className="space-y-6 p-5 sm:p-6 overflow-y-auto overscroll-contain">
         <div className="divide-y divide-ink-800">
           <div className="py-4 first:pt-0">
             <LanguagePicker />
@@ -142,6 +142,17 @@ export function SettingsSheet({ onClose }: { onClose: () => void }) {
               </div>
             </>
           )}
+        </div>
+        {/* Built by — only place it shows in the desktop app */}
+        <div className="pt-4 mt-2 border-t border-ink-800 flex flex-wrap items-center justify-center gap-x-1.5 gap-y-1 text-xs text-ink-500">
+          <span>Built by</span>
+          <a href="https://x.com/_amiralibgi" target="_blank" rel="noreferrer" className="flex items-center gap-1 font-medium text-ink-400 underline decoration-ink-700 underline-offset-2 hover:text-lime-flash hover:decoration-lime-flash/40">
+            <img src="/amirali.jpg" alt="" className="size-4 rounded-full object-cover" /> amiralibgi
+          </a>
+          <span>and</span>
+          <a href="https://x.com/yazdanctx" target="_blank" rel="noreferrer" className="flex items-center gap-1 font-medium text-ink-400 underline decoration-ink-700 underline-offset-2 hover:text-lime-flash hover:decoration-lime-flash/40">
+            <img src="/yazdan.jpg" alt="" className="size-4 rounded-full object-cover" /> yazdanctx
+          </a>
         </div>
       </div>
     </Sheet>

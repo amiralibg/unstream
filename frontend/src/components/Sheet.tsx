@@ -102,7 +102,7 @@ export function Sheet({
       />
       {/* Positioning lives on the grid so the entrance animation can own
           `transform` without fighting a centering translate. */}
-      <div className="pointer-events-none fixed inset-0 z-50 grid items-end justify-items-center sm:items-center">
+      <div className="pointer-events-none fixed inset-0 z-50 grid items-end justify-items-center p-4 sm:items-center sm:p-6">
         <section
           ref={panelRef}
           role="dialog"

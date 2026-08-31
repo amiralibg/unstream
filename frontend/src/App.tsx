@@ -623,24 +623,25 @@ function Shell() {
             {m.app.name}
           </span>
         </button>
-        {/* Preferences, so they share the trailing edge; the two that change
-            what a download *is* come first. Below `sm` they move into a sheet:
-            three chip strips do not fit beside the wordmark, and a flex row
-            will not shrink below its content, so leaving them here gave the
-            document a horizontal scrollbar. */}
-        <div className="ms-auto hidden items-center gap-2.5 sm:flex">
-          <LyricsToggle />
-          <QualityPicker />
-          <LanguagePicker />
-        </div>
-        <button
-          onClick={() => setSettingsOpen(true)}
-          aria-label={m.settings.open}
-          aria-haspopup="dialog"
-          className="tap-target ms-auto grid size-9 shrink-0 place-items-center rounded-ctl border border-ink-800 bg-ink-900 text-ink-300 transition duration-200 hover:text-ink-100 active:scale-90 sm:hidden"
-        >
-          <SettingsIcon className="size-5" />
-        </button>
+        {/* Web only: quality/lyrics/language. Desktop keeps them in the
+            titlebar's SettingsSheet so the header stays app-clean. */}
+        {!desktopMode && (
+          <>
+            <div className="ms-auto hidden items-center gap-2.5 sm:flex">
+              <LyricsToggle />
+              <QualityPicker />
+              <LanguagePicker />
+            </div>
+            <button
+              onClick={() => setSettingsOpen(true)}
+              aria-label={m.settings.open}
+              aria-haspopup="dialog"
+              className="tap-target ms-auto grid size-9 shrink-0 place-items-center rounded-ctl border border-ink-800 bg-ink-900 text-ink-300 transition duration-200 hover:text-ink-100 active:scale-90 sm:hidden"
+            >
+              <SettingsIcon className="size-5" />
+            </button>
+          </>
+        )}
       </header>
 
       {settingsOpen && <SettingsSheet onClose={() => setSettingsOpen(false)} />}
