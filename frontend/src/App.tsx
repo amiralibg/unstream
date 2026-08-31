@@ -303,6 +303,7 @@ function Shell() {
 
   const m = useMessages()
   const desktopMode = isDesktop()
+  const { entries: dockEntries } = useDownloads()
   const { Back, Forward, backNudge, forwardNudge } = useDirectional()
 
   // Set when this page load came from a shared link. Landing straight in a
@@ -602,51 +603,42 @@ function Shell() {
 
       <div className="flex-1 min-h-0 overflow-y-auto flex flex-col justify-between">
         <div>
-          <header
-            className={clsx(
-              'mx-auto flex w-full max-w-3xl items-center gap-2.5 px-5 select-none',
-              desktopMode ? 'pt-2.5 pb-2' : 'pt-[calc(1.75rem+var(--safe-top))]',
-            )}
-          >
-        {/* With the hero collapsed, the wordmark is the only way back to it —
-            and the first thing anyone tries. */}
-        <button
-          onClick={goHome}
-          disabled={landing}
-          aria-label={m.app.home}
-          className="group flex items-center gap-2.5 rounded-ctl transition disabled:cursor-default"
-        >
-          <span className="grid size-8 place-items-center rounded-ctl bg-lime-flash text-lime-ink transition duration-200 group-enabled:group-active:scale-95">
-            <AudioLines className="size-4.5" strokeWidth={2.25} />
-          </span>
-          <span className="font-display text-lg font-semibold transition-colors duration-200 group-enabled:group-hover:text-lime-flash">
-            {m.app.name}
-          </span>
-        </button>
-        {/* Web only: quality/lyrics/language. Desktop keeps them in the
-            titlebar's SettingsSheet so the header stays app-clean. */}
-        {!desktopMode && (
-          <>
-            <div className="ms-auto hidden items-center gap-2.5 sm:flex">
-              <LyricsToggle />
-              <QualityPicker />
-              <LanguagePicker />
-            </div>
-            <button
-              onClick={() => setSettingsOpen(true)}
-              aria-label={m.settings.open}
-              aria-haspopup="dialog"
-              className="tap-target ms-auto grid size-9 shrink-0 place-items-center rounded-ctl border border-ink-800 bg-ink-900 text-ink-300 transition duration-200 hover:text-ink-100 active:scale-90 sm:hidden"
-            >
-              <SettingsIcon className="size-5" />
-            </button>
-          </>
-        )}
-      </header>
+          {!desktopMode && (
+            <header className="mx-auto flex w-full max-w-3xl items-center gap-2.5 px-5 pt-[calc(1.75rem+var(--safe-top))] select-none">
+              {/* With the hero collapsed, the wordmark is the only way back to it —
+                  and the first thing anyone tries. */}
+              <button
+                onClick={goHome}
+                disabled={landing}
+                aria-label={m.app.home}
+                className="group flex items-center gap-2.5 rounded-ctl transition disabled:cursor-default"
+              >
+                <span className="grid size-8 place-items-center rounded-ctl bg-lime-flash text-lime-ink transition duration-200 group-enabled:group-active:scale-95">
+                  <AudioLines className="size-4.5" strokeWidth={2.25} />
+                </span>
+                <span className="font-display text-lg font-semibold transition-colors duration-200 group-enabled:group-hover:text-lime-flash">
+                  {m.app.name}
+                </span>
+              </button>
+              <div className="ms-auto hidden items-center gap-2.5 sm:flex">
+                <LyricsToggle />
+                <QualityPicker />
+                <LanguagePicker />
+              </div>
+              <button
+                onClick={() => setSettingsOpen(true)}
+                aria-label={m.settings.open}
+                aria-haspopup="dialog"
+                className="tap-target ms-auto grid size-9 shrink-0 place-items-center rounded-ctl border border-ink-800 bg-ink-900 text-ink-300 transition duration-200 hover:text-ink-100 active:scale-90 sm:hidden"
+              >
+                <SettingsIcon className="size-5" />
+              </button>
+            </header>
+          )}
 
-      {settingsOpen && <SettingsSheet onClose={() => setSettingsOpen(false)} />}
+          {settingsOpen && <SettingsSheet onClose={() => setSettingsOpen(false)} />}
 
-      <main className="mx-auto w-full max-w-3xl flex-1 px-5 pb-24">
+      <main className={clsx('mx-auto w-full max-w-3xl flex-1 px-5', desktopMode && dockEntries.length > 0 ? 'pb-[88px]' : 'pb-24')}>
         {sharedArrival ? (
           <section className="pt-10 pb-8">
             <div className="animate-fade-up rounded-panel border border-lime-flash/25 bg-lime-flash/[0.06] p-4 sm:p-5">
@@ -698,46 +690,23 @@ function Shell() {
               </p>
             )}
           </section>
-        ) : (
-          <section
-            className={clsx(
-              'transition-[padding] duration-300 ease-out-expo',
-              landing
-                ? desktopMode
-                  ? 'pt-6 pb-3'
-                  : 'pt-10 pb-8 sm:pt-14 sm:pb-10'
-                : 'pt-4 pb-3',
-            )}
-          >
+        ) : desktopMode ? (
+          <section className={clsx('transition-[padding] duration-300 ease-out-expo', landing ? 'pt-10 pb-6' : 'pt-4 pb-3')}>
             <YouTubeDisabledBanner />
-            {/* grid-rows 1fr→0fr is the one way to transition to height:auto;
-                the inner wrapper does the clipping. */}
+            {/* Desktop: no marketing hero — spotlight empty state. */}
             <Collapsible open={landing}>
-              <h1
-                className={clsx(
-                  'animate-fade-up font-display font-bold text-balance leading-[1.15]',
-                  desktopMode ? 'text-[clamp(2rem,4vw,3rem)]' : 'text-[clamp(2.5rem,7.5vw,4.5rem)]',
-                )}
-              >
-                {m.hero.titleLine1}
-                <br />
-                <span className="text-lime-flash">{m.hero.titleLine2}</span>
-              </h1>
-              <p
-                className={clsx(
-                  'max-w-md animate-fade-up leading-relaxed text-ink-300 [animation-delay:80ms]',
-                  desktopMode ? 'mt-3 text-sm' : 'mt-5 text-body',
-                )}
-              >
-                {m.hero.blurb}
-              </p>
+              <div className="flex flex-col items-center text-center animate-fade-up">
+                <span className="grid size-12 place-items-center rounded-2xl bg-lime-flash text-lime-ink shadow-lg shadow-lime-flash/15">
+                  <AudioLines className="size-6" strokeWidth={2.25} />
+                </span>
+                <p className="mt-3 text-sm font-medium text-ink-300">
+                  {m.hero.appEmpty}
+                </p>
+              </div>
             </Collapsible>
 
             <UrlForm
-              className={clsx(
-                'animate-fade-up transition-[margin] duration-300 ease-out-expo [animation-delay:160ms]',
-                landing && 'mt-8',
-              )}
+              className={clsx('animate-fade-up transition-[margin] duration-300 ease-out-expo [animation-delay:120ms]', landing && 'mt-6')}
               loading={busy}
               onSubmit={handleSubmit}
               onCancel={cancelPending}
@@ -745,28 +714,54 @@ function Shell() {
               focusPulse={focusPulse}
             />
 
-            {/* The shortcut hint is a discovery aid and the chips are a
-                cold-start affordance — both belong to the empty page only. */}
             <Collapsible open={landing}>
-              <p className="mt-3 pb-1 animate-fade-up text-mini text-ink-400 [animation-delay:220ms]">
-                {m.hero.shortcutBefore}{' '}
-                <kbd className="rounded-[5px] border border-ink-700 bg-ink-900 px-1.5 py-0.5 font-sans text-micro text-ink-300">
-                  /
-                </kbd>{' '}
-                {m.hero.shortcutAfter}
-              </p>
-              <RecentSearches
-                items={recent}
-                onPick={handleSubmit}
-                onClear={() => setRecent(clearRecentSearches())}
-              />
+              <div className="mt-4 flex justify-center">
+                <RecentSearches items={recent} onPick={handleSubmit} onClear={() => setRecent(clearRecentSearches())} />
+              </div>
             </Collapsible>
 
             {error && (
-              <p
-                role="alert"
-                className="mt-4 animate-fade-up rounded-btn border border-danger/25 bg-danger/10 px-4 py-3 text-sm text-danger"
-              >
+              <p role="alert" className="mt-4 animate-fade-up rounded-btn border border-danger/25 bg-danger/10 px-4 py-3 text-sm text-danger">
+                {apiError(error, m)}
+              </p>
+            )}
+          </section>
+        ) : (
+          <section
+            className={clsx(
+              'transition-[padding] duration-300 ease-out-expo',
+              landing ? 'pt-10 pb-8 sm:pt-14 sm:pb-10' : 'pt-4 pb-3',
+            )}
+          >
+            <YouTubeDisabledBanner />
+            <Collapsible open={landing}>
+              <h1 className="animate-fade-up font-display text-[clamp(2.5rem,7.5vw,4.5rem)] leading-[1.15] font-bold text-balance">
+                {m.hero.titleLine1}
+                <br />
+                <span className="text-lime-flash">{m.hero.titleLine2}</span>
+              </h1>
+              <p className="mt-5 max-w-md animate-fade-up text-body leading-relaxed text-ink-300 [animation-delay:80ms]">{m.hero.blurb}</p>
+            </Collapsible>
+
+            <UrlForm
+              className={clsx('animate-fade-up transition-[margin] duration-300 ease-out-expo [animation-delay:160ms]', landing && 'mt-8')}
+              loading={busy}
+              onSubmit={handleSubmit}
+              onCancel={cancelPending}
+              inputRef={inputRef}
+              focusPulse={focusPulse}
+            />
+
+            <Collapsible open={landing}>
+              <p className="mt-3 pb-1 animate-fade-up text-mini text-ink-400 [animation-delay:220ms]">
+                {m.hero.shortcutBefore}{' '}
+                <kbd className="rounded-[5px] border border-ink-700 bg-ink-900 px-1.5 py-0.5 font-sans text-micro text-ink-300">/</kbd> {m.hero.shortcutAfter}
+              </p>
+              <RecentSearches items={recent} onPick={handleSubmit} onClear={() => setRecent(clearRecentSearches())} />
+            </Collapsible>
+
+            {error && (
+              <p role="alert" className="mt-4 animate-fade-up rounded-btn border border-danger/25 bg-danger/10 px-4 py-3 text-sm text-danger">
                 {apiError(error, m)}
               </p>
             )}

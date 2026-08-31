@@ -102,6 +102,7 @@ const en = {
       'Paste a Spotify, YouTube, SoundCloud, Deezer or Apple Music link — or search every catalog at once. Get tagged MP3 files with cover art at the quality you pick. No account, no sign-up.',
     shortcutBefore: 'Press',
     shortcutAfter: 'to search, or paste a link anywhere on the page.',
+    appEmpty: 'Paste a link or search — files land in Music/Unstream',
   },
 
   form: {

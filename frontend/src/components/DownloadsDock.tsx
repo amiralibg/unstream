@@ -22,7 +22,7 @@ import {
   type Job,
   type JobTrack,
 } from '../lib/api'
-import { isDesktop, revealFile, openFolder, setWindowProgress } from '../lib/desktop'
+import { isDesktop as isTauri, revealFile, openFolder, setWindowProgress } from '../lib/desktop'
 import { useDownloads, type DownloadEntry } from '../lib/downloads'
 import { faNumerals, useMessages, useStartAlign } from '../lib/i18n'
 import { useToast } from '../lib/toast'
@@ -116,7 +116,7 @@ function TrackLine({
             ext={ext}
             size="compact"
           />
-            {isDesktop() ? (
+            {isTauri() ? (
             <button
               type="button"
               onClick={() => {
@@ -288,7 +288,7 @@ function JobCard({ entry, capped = true }: { entry: DownloadEntry; capped?: bool
           {qualityLabel(entry.quality, m)}
         </span>
         {showZip && (
-          isDesktop() ? (
+          isTauri() ? (
             <button
               type="button"
               onClick={() => {
@@ -524,7 +524,8 @@ function DownloadsSheet({
 
 export function DownloadsDock() {
   const { entries, activeCount, panelOpen, setPanelOpen } = useDownloads()
-  const isDesktop = useIsDesktop()
+  const isWide = useIsDesktop()
+  const isApp = isTauri()
   const m = useMessages()
 
   // Native window progress bar (macOS dock / Windows taskbar)
@@ -539,30 +540,31 @@ export function DownloadsDock() {
     ? Math.min(1, totalsForProgress.settled / totalsForProgress.total)
     : 0
   useEffect(() => {
-    if (!isDesktop) return
+    if (!isApp) return
     if (activeCount > 0) {
       void setWindowProgress(globalFraction)
     } else {
       void setWindowProgress(null)
     }
-  }, [activeCount, globalFraction, isDesktop])
+  }, [activeCount, globalFraction, isApp])
 
   // Toasts are full width on phones, so whatever this pins to the bottom edge
   // ends up under them. --dock-lift says how much room to leave, and this is
   // its only writer: the FAB's footprint, then the sheet's measured height,
   // and nothing on desktop where the two sit in opposite corners.
   const docked = entries.length > 0
-  const sheetOpen = panelOpen && !isDesktop
+  const sheetOpen = panelOpen && !isWide && !isApp
   const [sheetHeight, setSheetHeight] = useState(0)
   useEffect(() => {
     const root = document.documentElement
-    const lift = isDesktop ? 0 : sheetOpen ? sheetHeight : docked ? 76 : 0
+    // App has its own persistent bar, not the FAB footprint
+    const lift = isApp ? 0 : isWide ? 0 : sheetOpen ? sheetHeight : docked ? 76 : 0
     if (lift > 0) root.style.setProperty('--dock-lift', `${lift}px`)
     else root.style.removeProperty('--dock-lift')
     return () => {
       root.style.removeProperty('--dock-lift')
     }
-  }, [docked, isDesktop, sheetOpen, sheetHeight])
+  }, [docked, isWide, isApp, sheetOpen, sheetHeight])
 
   const close = useCallback(() => setPanelOpen(false), [setPanelOpen])
 
@@ -583,9 +585,60 @@ export function DownloadsDock() {
     .reverse()
     .map((entry) => <JobCard key={entry.jobId} entry={entry} capped={entries.length > 1} />)
 
+  // App (Tauri) gets a persistent bottom bar, not a floating FAB
+  if (isApp) {
+    const collapsed = !panelOpen
+    return (
+      <div className="fixed inset-x-0 bottom-0 z-30 flex flex-col border-t border-ink-800 bg-ink-900/95 backdrop-blur-xl shadow-[0_-8px_32px_rgba(0,0,0,0.5)]">
+        <button
+          type="button"
+          onClick={() => setPanelOpen(!panelOpen)}
+          className="flex w-full items-center gap-3 px-4 py-2.5 text-start hover:bg-ink-800/50 transition"
+        >
+          <span className="relative grid size-8 place-items-center rounded-full bg-lime-flash text-lime-ink shrink-0">
+            {activeCount > 0 ? <ArrowDownToLine className="size-4" strokeWidth={2.25} /> : <Check className="size-4" strokeWidth={2.25} />}
+            {activeCount > 0 && (
+              <svg viewBox="0 0 56 56" className="absolute inset-0 -rotate-90 size-8">
+                <circle cx="28" cy="28" r="26" fill="none" className="stroke-lime-ink/25" strokeWidth="3" />
+                <circle
+                  cx="28"
+                  cy="28"
+                  r="26"
+                  fill="none"
+                  className="stroke-lime-ink"
+                  strokeWidth="3"
+                  strokeLinecap="round"
+                  strokeDasharray={2 * Math.PI * 26}
+                  strokeDashoffset={2 * Math.PI * 26 * (1 - fraction)}
+                />
+              </svg>
+            )}
+          </span>
+          <span className="flex-1 min-w-0">
+            <span className="block text-xs font-semibold text-ink-100 leading-none">{m.dock.heading}</span>
+            <span className="block text-[11px] text-ink-400 tabular-nums mt-0.5">{summary} {activeCount > 0 && fraction > 0 && `· ${Math.round(fraction * 100)}%`}</span>
+          </span>
+          {activeCount > 0 ? (
+            <span className="text-[11px] font-medium text-lime-flash tabular-nums">{m.app.num(activeCount)} {m.dock.activeSummary(activeCount).replace(/^[0-9]+ /, '')}</span>
+          ) : null}
+          <ChevronDown className={clsx('size-4 shrink-0 text-ink-400 transition-transform', collapsed && '-rotate-180')} />
+        </button>
+        {/* Progress hairline */}
+        {activeCount > 0 && (
+          <div className="h-0.5 w-full bg-ink-800">
+            <div className="h-full bg-lime-flash transition-[width] duration-500" style={{ width: `${fraction * 100}%` }} />
+          </div>
+        )}
+        <div className={clsx('overflow-y-auto overscroll-contain transition-[max-height] duration-300', collapsed ? 'max-h-0' : 'max-h-[34vh]')}>
+          <div className="divide-y divide-ink-800/50">{cards}</div>
+        </div>
+      </div>
+    )
+  }
+
   return (
     <div className="fixed end-5 bottom-[calc(1.25rem+var(--safe-bottom))] z-50 flex flex-col items-end gap-3">
-      {panelOpen && isDesktop && (
+      {panelOpen && isWide && (
         <section
           aria-label={m.dock.heading}
           className="flex w-[min(24rem,calc(100vw-2.5rem))] animate-fade-up flex-col overflow-hidden rounded-panel border border-ink-700 bg-ink-900 shadow-2xl shadow-black/60"
@@ -609,21 +662,12 @@ export function DownloadsDock() {
         aria-label={panelOpen ? m.dock.close : m.dock.show}
         className={clsx(
           'relative grid size-14 place-items-center rounded-full bg-lime-flash text-lime-ink shadow-lg shadow-black/40 transition duration-200 hover:bg-lime-soft hover:scale-105 active:scale-95',
-          // The sheet owns the bottom edge and its own dismissal.
           sheetOpen && 'pointer-events-none opacity-0',
         )}
       >
-        {/* progress ring around the button while anything is downloading */}
         {activeCount > 0 && (
           <svg viewBox="0 0 56 56" className="absolute inset-0 -rotate-90">
-            <circle
-              cx="28"
-              cy="28"
-              r="26"
-              fill="none"
-              className="stroke-lime-ink/20"
-              strokeWidth="2.5"
-            />
+            <circle cx="28" cy="28" r="26" fill="none" className="stroke-lime-ink/20" strokeWidth="2.5" />
             <circle
               cx="28"
               cy="28"
@@ -637,11 +681,7 @@ export function DownloadsDock() {
             />
           </svg>
         )}
-        {panelOpen ? (
-          <ChevronDown className="size-5" strokeWidth={2.25} />
-        ) : (
-          <ArrowDownToLine className="size-5" strokeWidth={2.25} />
-        )}
+        {panelOpen ? <ChevronDown className="size-5" strokeWidth={2.25} /> : <ArrowDownToLine className="size-5" strokeWidth={2.25} />}
         {activeCount > 0 && !panelOpen && (
           <span className="absolute -top-0.5 -end-0.5 grid min-w-5 animate-pop place-items-center rounded-full border border-lime-flash bg-ink-950 px-1 text-micro font-semibold text-lime-flash tabular-nums">
             {m.app.num(activeCount)}
