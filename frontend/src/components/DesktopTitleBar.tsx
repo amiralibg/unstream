@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { getCurrentWindow } from '@tauri-apps/api/window'
 import { Search } from 'lucide-react'
+import clsx from 'clsx'
 import {
   isDesktop,
   isMacOS,
@@ -28,6 +29,10 @@ export function DesktopTitleBar({ onOpenPalette }: DesktopTitleBarProps) {
     if (isDesktop()) {
       try {
         const win = getCurrentWindow()
+        if (!isMac) {
+          win.setDecorations(false).catch(() => {})
+          win.setShadow(true).catch(() => {})
+        }
         win
           .isMaximized()
           .then(setIsMaximized)
@@ -45,7 +50,7 @@ export function DesktopTitleBar({ onOpenPalette }: DesktopTitleBarProps) {
         // ignore
       }
     }
-  }, [])
+  }, [isMac])
 
   if (!isDesktop()) return null
 
@@ -73,18 +78,23 @@ export function DesktopTitleBar({ onOpenPalette }: DesktopTitleBarProps) {
     }
   }
 
+  const sideWidth = isMac ? '78px' : '132px'
+
   return (
     <div
       dir="ltr"
       data-tauri-drag-region
       onMouseDown={handleMouseDown}
-      className="custom-titlebar sticky top-0 z-40 flex h-10 w-full shrink-0 select-none items-center justify-between border-b border-white/[0.06] bg-ink-950/90 px-3 text-xs text-ink-300 backdrop-blur-xl"
+      className={clsx(
+        'custom-titlebar sticky top-0 z-40 flex h-10 w-full shrink-0 select-none items-center justify-between border-b border-white/[0.06] bg-ink-950/90 text-xs text-ink-300 backdrop-blur-xl',
+        isMac ? 'px-3' : 'ps-3 pe-0',
+      )}
     >
-      {/* Physical Left Spacer: Offset for macOS traffic lights */}
+      {/* Physical Left Spacer: Offset for macOS traffic lights, or balancing right controls on Windows/Linux */}
       <div
         data-tauri-drag-region
         className="shrink-0 h-full flex items-center"
-        style={{ width: isMac ? '78px' : '12px' }}
+        style={{ width: sideWidth }}
       />
 
       {/* Center Search / Command trigger pill */}
@@ -113,19 +123,19 @@ export function DesktopTitleBar({ onOpenPalette }: DesktopTitleBarProps) {
         )}
       </div>
 
-      {/* Physical Right Section / Spacer (matching width on macOS to keep center search centered) */}
+      {/* Physical Right Section / Spacer (matching width on both sides to keep center search perfectly centered) */}
       <div
-        className="flex items-center justify-end gap-2 shrink-0 h-full"
-        style={{ width: isMac ? '78px' : 'auto' }}
+        className="flex items-center justify-end shrink-0 h-full"
+        style={{ width: sideWidth }}
         data-tauri-drag-region
       >
         {/* Non-Mac Native Window Controls */}
         {!isMac && (
-          <div className="flex items-center gap-0.5" data-no-drag>
+          <div className="flex items-center h-full" data-no-drag>
             <button
               type="button"
               onClick={() => handleWindowAction('minimize')}
-              className="grid size-7 place-items-center rounded-ctl text-ink-400 hover:bg-white/[0.08] hover:text-ink-100 transition"
+              className="grid h-10 w-11 place-items-center text-ink-400 hover:bg-white/[0.08] hover:text-ink-100 transition-colors"
               title={m.desktopNav.window.minimize}
             >
               <svg width="10" height="1" viewBox="0 0 10 1" fill="currentColor">
@@ -135,7 +145,7 @@ export function DesktopTitleBar({ onOpenPalette }: DesktopTitleBarProps) {
             <button
               type="button"
               onClick={() => handleWindowAction('maximize')}
-              className="grid size-7 place-items-center rounded-ctl text-ink-400 hover:bg-white/[0.08] hover:text-ink-100 transition"
+              className="grid h-10 w-11 place-items-center text-ink-400 hover:bg-white/[0.08] hover:text-ink-100 transition-colors"
               title={isMaximized ? m.desktopNav.window.restore : m.desktopNav.window.maximize}
             >
               {isMaximized ? (
@@ -147,7 +157,7 @@ export function DesktopTitleBar({ onOpenPalette }: DesktopTitleBarProps) {
                   stroke="currentColor"
                   strokeWidth="1.2"
                 >
-                  <rect x="2.5" y="0.5" width="7" height="7" rx="1" />
+                  <rect x="2.5" y="0.5" width="7" height="7" rx="0.5" />
                   <path d="M0.5 3.5V9.5H6.5" />
                 </svg>
               ) : (
@@ -159,14 +169,14 @@ export function DesktopTitleBar({ onOpenPalette }: DesktopTitleBarProps) {
                   stroke="currentColor"
                   strokeWidth="1.2"
                 >
-                  <rect x="0.6" y="0.6" width="7.8" height="7.8" rx="1" />
+                  <rect x="0.6" y="0.6" width="7.8" height="7.8" rx="0.5" />
                 </svg>
               )}
             </button>
             <button
               type="button"
               onClick={() => handleWindowAction('close')}
-              className="grid size-7 place-items-center rounded-ctl text-ink-400 hover:bg-danger/80 hover:text-white transition"
+              className="grid h-10 w-11 place-items-center text-ink-400 hover:bg-[#e81123] hover:text-white transition-colors"
               title={m.desktopNav.window.close}
             >
               <svg
@@ -177,8 +187,7 @@ export function DesktopTitleBar({ onOpenPalette }: DesktopTitleBarProps) {
                 stroke="currentColor"
                 strokeWidth="1.2"
               >
-                <line x1="1" y1="1" x2="9" y2="9" />
-                <line x1="9" y1="1" x2="1" y2="9" />
+                <path d="M1 1L9 9M9 1L1 9" strokeLinecap="round" />
               </svg>
             </button>
           </div>

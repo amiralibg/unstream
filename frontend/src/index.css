@@ -513,3 +513,152 @@ html {
   -webkit-app-region: no-drag;
   app-region: no-drag;
 }
+
+/* Custom cross-platform Range Slider (Progress & Volume)
+   Explicitly overrides WebKit / Chromium / Edge / Gecko defaults so Windows
+   WebView2, Linux WebKitGTK, and macOS render an identical sleek UI. */
+input[type='range'] {
+  -webkit-appearance: none;
+  appearance: none;
+  background: transparent;
+  outline: none;
+  border: none;
+  padding: 0;
+  margin: 0;
+}
+
+input[type='range']:focus {
+  outline: none;
+}
+
+input[type='range']:focus-visible {
+  outline: none;
+}
+
+/* WebKit / Chromium / Edge / Safari / WebView2 */
+input[type='range']::-webkit-slider-runnable-track {
+  -webkit-appearance: none;
+  appearance: none;
+  height: 100%;
+  border-radius: 9999px;
+  background: transparent;
+  border: none;
+}
+
+input[type='range']::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 12px;
+  height: 12px;
+  border-radius: 9999px;
+  background: #c8f24f;
+  border: none;
+  box-shadow:
+    0 1px 3px rgba(0, 0, 0, 0.5),
+    0 0 0 1px rgba(0, 0, 0, 0.2);
+  cursor: pointer;
+  margin-top: -4px; /* Center 12px thumb on 4px (h-1) track */
+  transition:
+    transform 0.15s ease,
+    box-shadow 0.15s ease,
+    background-color 0.15s ease;
+}
+
+input[type='range']:hover::-webkit-slider-thumb,
+input[type='range']:active::-webkit-slider-thumb {
+  transform: scale(1.2);
+  box-shadow:
+    0 2px 6px rgba(0, 0, 0, 0.7),
+    0 0 0 2px rgba(200, 242, 79, 0.35);
+}
+
+/* Firefox */
+input[type='range']::-moz-range-track {
+  height: 100%;
+  border-radius: 9999px;
+  background: transparent;
+  border: none;
+}
+
+input[type='range']::-moz-range-thumb {
+  appearance: none;
+  width: 12px;
+  height: 12px;
+  border-radius: 9999px;
+  background: #c8f24f;
+  border: none;
+  box-shadow:
+    0 1px 3px rgba(0, 0, 0, 0.5),
+    0 0 0 1px rgba(0, 0, 0, 0.2);
+  cursor: pointer;
+  transition:
+    transform 0.15s ease,
+    box-shadow 0.15s ease;
+}
+
+input[type='range']:hover::-moz-range-thumb,
+input[type='range']:active::-moz-range-thumb {
+  transform: scale(1.2);
+  box-shadow:
+    0 2px 6px rgba(0, 0, 0, 0.7),
+    0 0 0 2px rgba(200, 242, 79, 0.35);
+}
+
+/* IE / Edge legacy */
+input[type='range']::-ms-track {
+  height: 100%;
+  border-radius: 9999px;
+  background: transparent;
+  border-color: transparent;
+  color: transparent;
+}
+
+input[type='range']::-ms-fill-lower,
+input[type='range']::-ms-fill-upper {
+  background: transparent;
+  border-radius: 9999px;
+}
+
+input[type='range']::-ms-thumb {
+  appearance: none;
+  width: 12px;
+  height: 12px;
+  border-radius: 9999px;
+  background: #c8f24f;
+  border: none;
+}
+
+/* Volume Slider variation (refined white thumb) */
+input[type='range'].slider-volume::-webkit-slider-thumb {
+  background: #f4f4f5;
+  box-shadow:
+    0 1px 3px rgba(0, 0, 0, 0.5),
+    0 0 0 1px rgba(0, 0, 0, 0.2);
+}
+
+input[type='range'].slider-volume:hover::-webkit-slider-thumb,
+input[type='range'].slider-volume:active::-webkit-slider-thumb {
+  transform: scale(1.2);
+  box-shadow:
+    0 2px 6px rgba(0, 0, 0, 0.7),
+    0 0 0 2px rgba(255, 255, 255, 0.35);
+}
+
+input[type='range'].slider-volume::-moz-range-thumb {
+  background: #f4f4f5;
+  box-shadow:
+    0 1px 3px rgba(0, 0, 0, 0.5),
+    0 0 0 1px rgba(0, 0, 0, 0.2);
+}
+
+input[type='range'].slider-volume:hover::-moz-range-thumb,
+input[type='range'].slider-volume:active::-moz-range-thumb {
+  transform: scale(1.2);
+  box-shadow:
+    0 2px 6px rgba(0, 0, 0, 0.7),
+    0 0 0 2px rgba(255, 255, 255, 0.35);
+}
+
+input[type='range'].slider-volume::-ms-thumb {
+  background: #f4f4f5;
+}

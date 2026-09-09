@@ -138,7 +138,7 @@ export function DesktopLibraryView() {
                   onClick={() => playAt(0)}
                   className="flex h-9 items-center gap-1.5 rounded-btn bg-lime-flash px-4 text-mini font-bold text-ink-950 transition hover:bg-lime-soft active:scale-95 shadow-md shadow-lime-flash/20"
                 >
-                  <Play className="size-3.5 fill-current ltr:translate-x-0.5 rtl:-translate-x-0.5" />
+                  <Play className="size-3.5 fill-current translate-x-[0.5px]" />
                   <span>{m.player.playAll}</span>
                 </button>
                 <button
@@ -350,7 +350,7 @@ export function DesktopLibraryView() {
                           {active && playing ? (
                             <Pause className="size-3.5 fill-current" />
                           ) : (
-                            <Play className="size-3.5 fill-current ltr:translate-x-0.5 rtl:-translate-x-0.5" />
+                            <Play className="size-3.5 fill-current translate-x-[0.5px]" />
                           )}
                         </span>
                       </button>

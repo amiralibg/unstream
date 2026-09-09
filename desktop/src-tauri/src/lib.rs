@@ -636,6 +636,13 @@ pub fn run() {
         .manage(app_state)
         .setup(|app| {
             let app_handle = app.handle().clone();
+
+            #[cfg(not(target_os = "macos"))]
+            if let Some(window) = app.get_webview_window("main") {
+                let _ = window.set_decorations(false);
+                let _ = window.set_shadow(true);
+            }
+
             let state = app.state::<AppState>();
             let port = get_free_port();
             *state.port.lock().unwrap() = port;

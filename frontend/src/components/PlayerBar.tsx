@@ -88,7 +88,7 @@ function VolumeControl({ m }: { m: Messages }) {
         onChange={(e) => setVolume(Number(e.target.value))}
         aria-label={m.player.volume}
         dir="ltr"
-        className="h-1 w-20 cursor-pointer appearance-none rounded-full"
+        className="slider-volume h-1 w-20 cursor-pointer appearance-none rounded-full"
         style={{
           background: `linear-gradient(to right, rgba(255,255,255,0.55) ${level * 100}%, rgba(255,255,255,0.1) ${level * 100}%)`,
         }}
@@ -220,7 +220,7 @@ export function PlayerBar({ onExpand }: { onExpand: () => void }) {
             {loading ? (
               <span className="size-4 animate-spin rounded-full border-2 border-lime-ink/25 border-t-lime-ink" />
             ) : playing ? (
-              <Pause className="size-4" />
+              <Pause className="size-4 fill-current" />
             ) : (
               <Play className="size-4 translate-x-[1px]" />
             )}
