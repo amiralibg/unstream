@@ -10,6 +10,9 @@ on:
 permissions:
   contents: write
 
+env:
+  QJS_VERSION: v0.16.2
+
 jobs:
   build-desktop:
     name: Build (${{ matrix.platform.name }})
@@ -20,24 +23,34 @@ jobs:
         platform:
           - name: macOS-arm64
             os: macos-14
-            deno_url: "https://github.com/denoland/deno/releases/download/v2.9.5/deno-aarch64-apple-darwin.zip"
             target: aarch64-apple-darwin
+            qjs: qjs-darwin-arm64
           - name: macOS-x64
             os: macos-13
-            deno_url: "https://github.com/denoland/deno/releases/download/v2.9.5/deno-x86_64-apple-darwin.zip"
             target: x86_64-apple-darwin
+            qjs: qjs-darwin-x86_64
           - name: Linux-x64
             os: ubuntu-22.04
-            deno_url: "https://github.com/denoland/deno/releases/download/v2.9.5/deno-x86_64-unknown-linux-gnu.zip"
             target: x86_64-unknown-linux-gnu
+            qjs: qjs-linux-x86_64
+            ffmpeg: ffmpeg-master-latest-linux64-lgpl.tar.xz
           - name: Linux-arm64
             os: ubuntu-24.04-arm
-            deno_url: "https://github.com/denoland/deno/releases/download/v2.9.5/deno-aarch64-unknown-linux-gnu.zip"
             target: aarch64-unknown-linux-gnu
+            qjs: qjs-linux-aarch64
+            ffmpeg: ffmpeg-master-latest-linuxarm64-lgpl.tar.xz
           - name: Windows-x64
             os: windows-latest
-            deno_url: "https://github.com/denoland/deno/releases/download/v2.9.5/deno-x86_64-pc-windows-msvc.zip"
             target: x86_64-pc-windows-msvc
+            qjs: qjs-windows-x86_64.exe
+            ffmpeg: ffmpeg-master-latest-win64-lgpl.zip
+          - name: Windows-arm64
+            os: windows-11-arm
+            target: aarch64-pc-windows-msvc
+            # quickjs-ng publishes no arm64 Windows binary; Windows on ARM
+            # runs x64 under emulation, and this is a short-lived subprocess.
+            qjs: qjs-windows-x86_64.exe
+            ffmpeg: ffmpeg-master-latest-winarm64-lgpl.zip
 
     steps:
       - uses: actions/checkout@v4
@@ -69,17 +82,7 @@ jobs:
             libssl-dev \
             libayatana-appindicator3-dev \
             librsvg2-dev \
-            ffmpeg
-
-      - name: Install macOS ffmpeg
-        if: runner.os == 'macOS'
-        run: |
-          brew install ffmpeg
-
-      - name: Install Windows ffmpeg
-        if: runner.os == 'Windows'
-        run: |
-          choco install ffmpeg
+            xdg-utils
 
       - name: Build Frontend
         run: |
@@ -101,24 +104,79 @@ jobs:
           uv sync --dev
           uv run pyinstaller --noconfirm unstream-api.spec
 
-      - name: Prepare bundled binaries (deno + ffmpeg) - Unix
-        if: runner.os != 'Windows'
+      # yt-dlp solves YouTube's JS challenge with whatever runtime it finds.
+      # deno did the job in 77MB; quickjs does it in about one, and yt-dlp
+      # has had a quickjs backend since well before the version pinned here.
+      # The binary must be named `qjs` — that is the name yt-dlp's own
+      # discovery looks for, and app/ytdlp.py maps it back to the "quickjs"
+      # option key.
+      - name: Bundle qjs + ffmpeg (Linux)
+        if: runner.os == 'Linux'
         run: |
+          set -euo pipefail
           mkdir -p desktop/src-tauri/bin
-          curl -fsSL -o /tmp/deno.zip "${{ matrix.platform.deno_url }}"
-          unzip -o -q /tmp/deno.zip -d desktop/src-tauri/bin
-          chmod +x desktop/src-tauri/bin/deno
-          cp $(which ffmpeg) desktop/src-tauri/bin/ffmpeg
+          curl -fsSL -o desktop/src-tauri/bin/qjs \
+            "https://github.com/quickjs-ng/quickjs/releases/download/${QJS_VERSION}/${{ matrix.platform.qjs }}"
+          chmod +x desktop/src-tauri/bin/qjs
+          # A real static build. The old step copied the runner's apt ffmpeg
+          # without its shared libraries, which cannot launch anywhere else.
+          curl -fsSL -o /tmp/ffmpeg.tar.xz \
+            "https://github.com/BtbN/FFmpeg-Builds/releases/download/latest/${{ matrix.platform.ffmpeg }}"
+          tar -xf /tmp/ffmpeg.tar.xz -C /tmp
+          cp /tmp/ffmpeg-*/bin/ffmpeg desktop/src-tauri/bin/ffmpeg
           chmod +x desktop/src-tauri/bin/ffmpeg
 
-      - name: Prepare bundled binaries (deno + ffmpeg) - Windows
+      - name: Bundle qjs + ffmpeg (macOS)
+        if: runner.os == 'macOS'
+        run: |
+          set -euo pipefail
+          mkdir -p desktop/src-tauri/bin
+          curl -fsSL -o desktop/src-tauri/bin/qjs \
+            "https://github.com/quickjs-ng/quickjs/releases/download/${QJS_VERSION}/${{ matrix.platform.qjs }}"
+          chmod +x desktop/src-tauri/bin/qjs
+          # BtbN publishes no macOS build, so Homebrew's ffmpeg is made
+          # self-contained instead: dylibbundler copies each dependency in
+          # beside it and rewrites the load paths to @executable_path.
+          brew install ffmpeg dylibbundler
+          cp "$(which ffmpeg)" desktop/src-tauri/bin/ffmpeg
+          chmod +x desktop/src-tauri/bin/ffmpeg
+          dylibbundler --overwrite-dir --bundle-deps --create-dir \
+            --fix-file desktop/src-tauri/bin/ffmpeg \
+            --dest-dir desktop/src-tauri/bin/libs \
+            --install-path "@executable_path/libs"
+
+      - name: Bundle qjs + ffmpeg (Windows)
         if: runner.os == 'Windows'
         shell: pwsh
         run: |
-          New-Item -ItemType Directory -Force -Path desktop/src-tauri/bin
-          Invoke-WebRequest -Uri "${{ matrix.platform.deno_url }}" -OutFile "$env:TEMP/deno.zip"
-          Expand-Archive -Path "$env:TEMP/deno.zip" -DestinationPath desktop/src-tauri/bin -Force
-          Copy-Item (Get-Command ffmpeg).Source desktop/src-tauri/bin/ffmpeg.exe
+          $ErrorActionPreference = "Stop"
+          New-Item -ItemType Directory -Force -Path desktop/src-tauri/bin | Out-Null
+          Invoke-WebRequest -Uri "https://github.com/quickjs-ng/quickjs/releases/download/$env:QJS_VERSION/${{ matrix.platform.qjs }}" -OutFile desktop/src-tauri/bin/qjs.exe
+          Invoke-WebRequest -Uri "https://github.com/BtbN/FFmpeg-Builds/releases/download/latest/${{ matrix.platform.ffmpeg }}" -OutFile "$env:TEMP/ffmpeg.zip"
+          Expand-Archive -Path "$env:TEMP/ffmpeg.zip" -DestinationPath "$env:TEMP/ffmpeg" -Force
+          Copy-Item (Get-ChildItem -Path "$env:TEMP/ffmpeg" -Filter ffmpeg.exe -Recurse | Select-Object -First 1).FullName desktop/src-tauri/bin/ffmpeg.exe
+
+      # Both binaries are useless if they cannot start on a machine that is
+      # not this runner, and that failure would only show up as a download
+      # that mysteriously never finishes. Fail the build here instead.
+      - name: Verify bundled binaries run standalone
+        shell: bash
+        run: |
+          set -euo pipefail
+          BIN=desktop/src-tauri/bin
+          EXT=""
+          [ "$RUNNER_OS" = "Windows" ] && EXT=".exe"
+          "$BIN/ffmpeg$EXT" -version | head -1
+          # qjs has no --version and exits non-zero on --help.
+          "$BIN/qjs$EXT" --help 2>&1 | head -1 || true
+          if [ "$RUNNER_OS" = "macOS" ]; then
+            if otool -L "$BIN/ffmpeg" | grep -qE "/opt/homebrew|/usr/local/(opt|Cellar)"; then
+              echo "ffmpeg still links to Homebrew paths; it would not run elsewhere" >&2
+              otool -L "$BIN/ffmpeg" >&2
+              exit 1
+            fi
+          fi
+          du -sh "$BIN"
 
       # The version in tauri.conf.json is what lands in latest.json, and
       # latest.json is the only thing an installed app compares itself

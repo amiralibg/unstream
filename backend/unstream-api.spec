@@ -32,7 +32,21 @@ a = Analysis(
     hookspath=[],
     hooksconfig={},
     runtime_hooks=[],
-    excludes=['tkinter'],
+    # CI installs the dev group so PyInstaller itself is available, and
+    # Analysis then collects whatever it finds importable. Pillow alone is
+    # 11 MB of a bundle nothing imports — grep app/ for PIL and there is
+    # nothing. The rest are test and build tooling with no place in a
+    # shipped app.
+    excludes=[
+        'tkinter',
+        'PIL',
+        'pytest',
+        '_pytest',
+        'PyInstaller',
+        'httpx2',
+        'setuptools',
+        'pip',
+    ],
     noarchive=False,
     optimize=0,
 )

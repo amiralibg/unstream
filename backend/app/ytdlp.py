@@ -242,11 +242,23 @@ def status() -> dict:
     }
 
 
+# (runtime key, binary name). The two differ for QuickJS: yt-dlp's option
+# takes "quickjs", but the interpreter ships as `qjs` and that is the name
+# yt-dlp's own discovery looks for. Probing for "quickjs" finds nothing on a
+# machine that has it.
+_JS_RUNTIMES = (
+    ("deno", "deno"),
+    ("bun", "bun"),
+    ("node", "node"),
+    ("quickjs", "qjs"),
+)
+
+
 def _js_runtime() -> str | None:
     """Which JS runtime is on PATH, if any — None means challenges can't be
     solved and YouTube will hand back videos with no audio on them."""
-    for runtime in ("deno", "bun", "node", "quickjs"):
-        if shutil.which(runtime):
+    for runtime, binary in _JS_RUNTIMES:
+        if shutil.which(binary):
             return runtime
     return None
 
