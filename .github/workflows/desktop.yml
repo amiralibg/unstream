@@ -112,6 +112,39 @@ jobs:
           Expand-Archive -Path "$env:TEMP/deno.zip" -DestinationPath desktop/src-tauri/bin -Force
           Copy-Item (Get-Command ffmpeg).Source desktop/src-tauri/bin/ffmpeg.exe
 
+      # The version in tauri.conf.json is what lands in latest.json, and
+      # latest.json is the only thing an installed app compares itself
+      # against. A scheduled rebuild that keeps the released version would
+      # publish a fresh yt-dlp that no one ever receives — the app would
+      # look updated and quietly rot. So: a tag build takes its version
+      # from the tag, and every other build takes a patch number that only
+      # ever goes up. Both are written into the manifests so the tag, the
+      # binary and the update feed can never disagree.
+      - name: Resolve version
+        shell: bash
+        run: |
+          node -e '
+            const fs = require("fs");
+            const confPath = "desktop/src-tauri/tauri.conf.json";
+            const conf = JSON.parse(fs.readFileSync(confPath, "utf8"));
+            const ref = process.env.GITHUB_REF || "";
+            const version = ref.startsWith("refs/tags/v")
+              ? ref.slice("refs/tags/v".length)
+              // run_number is monotonic for the life of the workflow, so
+              // consecutive rebuilds always compare as newer. Bumping the
+              // minor in a tagged release stays ahead of it.
+              : conf.version.split(".").slice(0, 2).concat(process.env.GITHUB_RUN_NUMBER).join(".");
+            conf.version = version;
+            fs.writeFileSync(confPath, JSON.stringify(conf, null, 2) + "\n");
+            const cargoPath = "desktop/src-tauri/Cargo.toml";
+            fs.writeFileSync(
+              cargoPath,
+              fs.readFileSync(cargoPath, "utf8").replace(/^version = ".*"$/m, `version = "${version}"`),
+            );
+            fs.appendFileSync(process.env.GITHUB_ENV, `APP_VERSION=${version}\n`);
+            console.log("building version", version);
+          '
+
       - name: Build Tauri App
         uses: tauri-apps/tauri-action@v0
         env:
@@ -120,7 +153,7 @@ jobs:
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         with:
           projectPath: "./desktop"
-          tagName: ${{ startsWith(github.ref, 'refs/tags/') && github.ref_name || format('v0.0.1-{0}', github.run_number) }}
+          tagName: v${{ env.APP_VERSION }}
           releaseName: "Unstream Desktop __VERSION__"
           releaseBody: "See release assets below for macOS, Windows, and Linux."
           releaseDraft: false

@@ -1,7 +1,7 @@
 {
   "$schema": "https://raw.githubusercontent.com/tauri-apps/tauri/refs/heads/v2/crates/tauri-cli/schema.json",
   "productName": "Unstream",
-  "version": "0.0.1",
+  "version": "0.1.0",
   "identifier": "xyz.amiralibg.unstream",
   "build": {
     "devUrl": "http://localhost:5173",
@@ -24,7 +24,20 @@
         "resizable": true,
         "titleBarStyle": "Overlay",
         "hiddenTitle": true,
-        "dragDropEnabled": true
+        "dragDropEnabled": true,
+        "visible": false
+      },
+      {
+        "label": "splash",
+        "url": "splash.html",
+        "title": "Unstream",
+        "width": 400,
+        "height": 320,
+        "center": true,
+        "decorations": false,
+        "resizable": false,
+        "transparent": true,
+        "skipTaskbar": true
       }
     ],
     "security": {
@@ -48,6 +61,11 @@
     }
   },
   "plugins": {
+    "deep-link": {
+      "desktop": {
+        "schemes": ["unstream"]
+      }
+    },
     "updater": {
       "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDFGODRCRTM5MzhGRDc0NDkKUldSSmRQMDRPYjZFSDAvTEpJbnkvWk84MHpCK1dNUUZxRlIzN2F3cng1QjlaRjV4dUJMOVhPYU8K",
       "endpoints": [
