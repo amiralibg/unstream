@@ -1,0 +1,29 @@
+# The app's own `#[tauri::command]`s, listed so the ACL lets them through.
+#
+# The trap: the main window is served by the sidecar over
+# http://127.0.0.1:<port>, which Tauri classes as a *remote* origin, and a
+# remote origin reaches a custom command only when a capability grants it.
+# Release builds reject the rest with a message nothing displays, so every
+# invoke here failed silently in production while the plugin calls beside
+# them (dialog, opener, updater) kept working — the settings browser list
+# came back empty, the version line stayed blank, the window buttons and
+# the dock progress did nothing. Adding a command to `invoke_handler!`
+# means adding it here too.
+
+[[permission]]
+identifier = "allow-desktop-commands"
+description = "Every command Unstream Desktop registers in its invoke handler."
+commands.allow = [
+  "get_downloads_dir",
+  "set_downloads_dir",
+  "get_desktop_info",
+  "list_installed_browsers",
+  "start_dragging",
+  "toggle_maximize",
+  "minimize_window",
+  "close_window",
+  "set_progress_bar",
+  "focus_window",
+  "retry_backend",
+  "quit_app",
+]

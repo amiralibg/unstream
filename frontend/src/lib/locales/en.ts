@@ -52,6 +52,7 @@ const en = {
     checkingUpdates: 'Checking for updates…',
     upToDate: 'Up to date',
     updateAvailable: (v: string) => `Update available (${v})`,
+    downloadingUpdate: 'Downloading update…',
     installUpdate: 'Install & relaunch',
     installing: 'Installing…',
     updateFailed: 'Update failed — try again later',

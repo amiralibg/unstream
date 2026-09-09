@@ -26,8 +26,13 @@ import {
   pickDownloadsDir,
   setCookiesFromBrowser,
   type DesktopInfo,
+  type UpdateProgress,
 } from '../lib/desktop'
 import { useMessages } from '../lib/i18n'
+
+/** Update sizes are tens of megabytes, so MB with one decimal is the unit
+ *  that actually moves while a download runs. */
+const mb = (bytes: number) => (bytes / 1024 / 1024).toFixed(1)
 
 const COOKIE_BROWSERS = [
   { value: 'chrome', label: 'Google Chrome' },
@@ -62,6 +67,7 @@ export function DesktopSettingsView() {
   const [checkingUpdate, setCheckingUpdate] = useState(false)
   const [installing, setInstalling] = useState(false)
   const [updateReady, setUpdateReady] = useState(false)
+  const [progress, setProgress] = useState<UpdateProgress | null>(null)
   const [restarting, setRestarting] = useState(false)
   const [updateAvailable, setUpdateAvailable] = useState<{ version: string; body: string } | null>(
     null,
@@ -125,8 +131,9 @@ export function DesktopSettingsView() {
   const handleInstallUpdate = async () => {
     setInstalling(true)
     setUpdateStatus(null)
+    setProgress({ downloaded: 0, total: null, percent: null })
     try {
-      const ok = await downloadAndInstallUpdate()
+      const ok = await downloadAndInstallUpdate(setProgress)
       if (ok) {
         setUpdateReady(true)
         setUpdateStatus(m.settings.updateReady)
@@ -137,6 +144,7 @@ export function DesktopSettingsView() {
       setUpdateStatus(m.settings.updateFailed)
     } finally {
       setInstalling(false)
+      setProgress(null)
     }
   }
 
@@ -329,20 +337,45 @@ export function DesktopSettingsView() {
                 </button>
               </div>
             ) : updateAvailable ? (
-              <div className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-ctl border border-lime-flash/30 bg-lime-flash/[0.08] p-3.5 animate-fade-up">
-                <p className="text-mini text-ink-200">
-                  <span className="font-bold text-lime-flash">{m.desktopNav.newVersion} </span>
-                  <span className="tabular-nums font-semibold">{updateAvailable.version}</span>
-                </p>
-                <button
-                  type="button"
-                  onClick={handleInstallUpdate}
-                  disabled={installing}
-                  className="flex h-8.5 items-center gap-1.5 rounded-ctl bg-lime-flash px-4 text-mini font-bold text-ink-950 transition hover:bg-lime-soft disabled:opacity-50 shadow-sm"
-                >
-                  {installing && <RefreshCw className="size-3.5 animate-spin" />}
-                  <span>{installing ? m.settings.installing : m.settings.installUpdate}</span>
-                </button>
+              <div className="mt-4 rounded-ctl border border-lime-flash/30 bg-lime-flash/[0.08] p-3.5 animate-fade-up">
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <p className="text-mini text-ink-200">
+                    <span className="font-bold text-lime-flash">{m.desktopNav.newVersion} </span>
+                    <span className="tabular-nums font-semibold">{updateAvailable.version}</span>
+                  </p>
+                  <button
+                    type="button"
+                    onClick={handleInstallUpdate}
+                    disabled={installing}
+                    className="flex h-8.5 items-center gap-1.5 rounded-ctl bg-lime-flash px-4 text-mini font-bold text-ink-950 transition hover:bg-lime-soft disabled:opacity-50 shadow-sm"
+                  >
+                    {installing && <RefreshCw className="size-3.5 animate-spin" />}
+                    <span>{installing ? m.settings.installing : m.settings.installUpdate}</span>
+                  </button>
+                </div>
+                {progress && (
+                  <div className="mt-3.5 space-y-2">
+                    <div className="flex items-center justify-between gap-3 text-micro text-ink-300">
+                      <span>{m.settings.downloadingUpdate}</span>
+                      <span dir="ltr" className="tabular-nums font-medium text-lime-flash">
+                        {progress.percent !== null && `${m.app.num(progress.percent)}% · `}
+                        {m.app.num(mb(progress.downloaded))}
+                        {progress.total !== null && ` / ${m.app.num(mb(progress.total))}`} MB
+                      </span>
+                    </div>
+                    <div className="h-1.5 overflow-hidden rounded-full bg-white/[0.08]">
+                      {/* No content length means no honest percentage, so the
+                          bar fills and pulses instead of inventing one. */}
+                      <div
+                        className={clsx(
+                          'h-full rounded-full bg-lime-flash transition-[width] duration-200 ease-out',
+                          progress.percent === null && 'animate-pulse',
+                        )}
+                        style={{ width: `${progress.percent ?? 100}%` }}
+                      />
+                    </div>
+                  </div>
+                )}
               </div>
             ) : null}
           </section>

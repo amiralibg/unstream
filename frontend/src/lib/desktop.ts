@@ -1,7 +1,7 @@
 import { invoke } from '@tauri-apps/api/core'
 import { revealItemInDir, openPath } from '@tauri-apps/plugin-opener'
 import { open } from '@tauri-apps/plugin-dialog'
-import { check } from '@tauri-apps/plugin-updater'
+import { check, type Update } from '@tauri-apps/plugin-updater'
 import {
   isPermissionGranted,
   requestPermission,
@@ -197,6 +197,11 @@ export async function getDesktopInfo(): Promise<DesktopInfo | null> {
   }
 }
 
+/** The `Update` the last check handed back, kept so installing does not
+ *  re-fetch the feed — and so the build that installs is the one the person
+ *  was shown, not whatever the endpoint serves a minute later. */
+let pendingUpdate: Update | null = null
+
 export async function checkForAppUpdates(): Promise<{
   available: boolean
   version?: string
@@ -205,6 +210,7 @@ export async function checkForAppUpdates(): Promise<{
   if (!isDesktop()) return null
   try {
     const update = await check()
+    pendingUpdate = update
     if (update) {
       return {
         available: true,
@@ -288,15 +294,52 @@ export async function notifyDownloadComplete(title: string, body: string): Promi
   }
 }
 
-export async function downloadAndInstallUpdate(): Promise<boolean> {
+/** How far the update download has got. `total` is null until the server
+ *  answers with a content length — some mirrors never do, which is why the
+ *  UI needs to tell a real percentage apart from a missing one. */
+export interface UpdateProgress {
+  downloaded: number
+  total: number | null
+  percent: number | null
+}
+
+export async function downloadAndInstallUpdate(
+  onProgress?: (progress: UpdateProgress) => void,
+): Promise<boolean> {
   if (!isDesktop()) return false
   try {
-    const update = await check()
-    if (update) {
-      await update.downloadAndInstall()
-      return true
-    }
-    return false
+    const update = pendingUpdate ?? (await check())
+    if (!update) return false
+    let total: number | null = null
+    let downloaded = 0
+    const report = () =>
+      onProgress?.({
+        downloaded,
+        total,
+        percent: total ? Math.min(100, Math.round((downloaded / total) * 100)) : null,
+      })
+    await update.downloadAndInstall((event) => {
+      switch (event.event) {
+        case 'Started':
+          total = event.data.contentLength ?? null
+          downloaded = 0
+          report()
+          break
+        case 'Progress':
+          downloaded += event.data.chunkLength
+          report()
+          break
+        case 'Finished':
+          // The last Progress can land short of the content length when the
+          // body is compressed; finishing means 100%, whatever the sum says.
+          total = total ?? downloaded
+          downloaded = total
+          report()
+          break
+      }
+    })
+    pendingUpdate = null
+    return true
   } catch (err) {
     console.error('Update download and install failed:', err)
     throw err
@@ -317,7 +360,9 @@ export async function relaunchApp(): Promise<void> {
   }
 }
 
-export async function installUpdateAndRelaunch(): Promise<void> {
-  await downloadAndInstallUpdate()
+export async function installUpdateAndRelaunch(
+  onProgress?: (progress: UpdateProgress) => void,
+): Promise<void> {
+  await downloadAndInstallUpdate(onProgress)
   await relaunchApp()
 }

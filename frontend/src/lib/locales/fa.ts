@@ -48,6 +48,7 @@ const fa: Messages = {
     checkingUpdates: 'در حال بررسی…',
     upToDate: 'برنامه به‌روز است',
     updateAvailable: (v) => `به‌روزرسانی جدید موجود است (${fd(v)})`,
+    downloadingUpdate: 'در حال دانلود به‌روزرسانی…',
     installUpdate: 'نصب و اجرای مجدد',
     installing: 'در حال نصب…',
     updateFailed: 'به‌روزرسانی ناموفق بود — بعداً دوباره امتحان کنید',

@@ -8,6 +8,7 @@
     "urls": ["http://127.0.0.1:*", "http://localhost:*"]
   },
   "permissions": [
+    "allow-desktop-commands",
     "core:default",
     "core:window:default",
     "core:window:allow-start-dragging",
@@ -29,6 +30,7 @@
     "dialog:default",
     "dialog:allow-open",
     "updater:default",
+    "process:default",
     "notification:default",
     "notification:allow-is-permission-granted",
     "notification:allow-request-permission",
