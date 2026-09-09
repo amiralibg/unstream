@@ -8,6 +8,8 @@ use std::time::Duration;
 
 use serde::{Deserialize, Serialize};
 use tauri::{AppHandle, Emitter, Manager, State, Url};
+use tauri_plugin_deep_link::DeepLinkExt;
+use tauri_plugin_window_state::StateFlags;
 
 #[derive(Default)]
 pub struct AppState {
@@ -15,6 +17,10 @@ pub struct AppState {
     pub port: Arc<Mutex<u16>>,
     pub downloads_dir: Arc<Mutex<PathBuf>>,
     pub app_data_dir: Arc<Mutex<PathBuf>>,
+    /// Set once the sidecar answers /health and the main window is live.
+    /// Links arriving before that are queued in `pending_link` instead.
+    pub backend_ready: Arc<Mutex<bool>>,
+    pub pending_link: Arc<Mutex<Option<String>>>,
 }
 
 #[derive(Serialize, Deserialize, Default)]
@@ -54,6 +60,92 @@ fn save_settings(app_data_dir: &PathBuf, settings: &SavedSettings) -> Result<(),
     let settings_file = app_data_dir.join("settings.json");
     let json = serde_json::to_string_pretty(settings).map_err(|e| e.to_string())?;
     fs::write(settings_file, json).map_err(|e| e.to_string())
+}
+
+/// Hosts we know how to resolve. Mirrors URL_PATTERNS in frontend/src/lib/api.ts —
+/// a link the frontend can't open must never be forwarded to it.
+const CATALOG_HOSTS: [&str; 6] = [
+    "spotify.com",
+    "deezer.com",
+    "youtube.com",
+    "youtu.be",
+    "soundcloud.com",
+    "music.apple.com",
+];
+
+/// Normalise anything that can arrive as "open this" into a catalog URL:
+/// a bare Spotify/Deezer/… link, or our own `unstream://open?url=<encoded>`
+/// scheme (registered via the deep-link plugin for "Open in app" flows).
+fn extract_catalog_url(raw: &str) -> Option<String> {
+    let raw = raw.trim();
+    if raw.is_empty() {
+        return None;
+    }
+    if let Ok(parsed) = url::Url::parse(raw) {
+        if parsed.scheme() == "unstream" {
+            for (key, value) in parsed.query_pairs() {
+                if key == "url" && CATALOG_HOSTS.iter().any(|h| value.contains(h)) {
+                    return Some(value.into_owned());
+                }
+            }
+            return None;
+        }
+    }
+    if CATALOG_HOSTS.iter().any(|h| raw.contains(h)) {
+        return Some(raw.to_string());
+    }
+    None
+}
+
+/// Route an incoming link: straight to the live frontend, or queued for the
+/// boot navigation when the sidecar isn't up yet. Returns whether it matched.
+fn handle_incoming_url(app: &AppHandle, raw: &str) -> bool {
+    let Some(catalog) = extract_catalog_url(raw) else {
+        return false;
+    };
+    let state = app.state::<AppState>();
+    if *state.backend_ready.lock().unwrap() {
+        if let Some(window) = app.get_webview_window("main") {
+            let _ = window.unminimize();
+            let _ = window.set_focus();
+            let _ = window.emit("deep-link", catalog);
+        }
+    } else {
+        *state.pending_link.lock().unwrap() = Some(catalog);
+    }
+    true
+}
+
+/// The sidecar answers /health: point the main window at it, swap the splash
+/// for the app, and flush any link that arrived during boot.
+fn boot_ready(app: &AppHandle) {
+    let state = app.state::<AppState>();
+    *state.backend_ready.lock().unwrap() = true;
+    let port = *state.port.lock().unwrap();
+    let pending = state.pending_link.lock().unwrap().take();
+
+    if let Some(window) = app.get_webview_window("main") {
+        if !cfg!(debug_assertions) {
+            let mut target = format!("http://127.0.0.1:{}/", port);
+            if let Some(link) = pending {
+                if let Ok(mut u) = Url::parse(&target) {
+                    u.query_pairs_mut().append_pair("url", &link);
+                    target = u.to_string();
+                }
+            }
+            if let Ok(url) = Url::parse(&target) {
+                let _ = window.navigate(url);
+            }
+        } else if let Some(link) = pending {
+            // Dev loads Vite directly, so there is no boot navigation to
+            // carry the link — the frontend is already mounted, emit it.
+            let _ = window.emit("deep-link", link);
+        }
+        let _ = window.show();
+    }
+    if let Some(splash) = app.get_webview_window("splash") {
+        let _ = splash.close();
+    }
 }
 
 fn find_backend_binary(app_handle: &AppHandle) -> PathBuf {
@@ -196,6 +288,21 @@ fn spawn_backend(
         .env("DOWNLOADS_TTL_HOURS", "0")
         .env("MAX_DOWNLOADS_GB", "0")
         .env("RATE_LIMITS_ENABLED", "false")
+        // A desktop has one user, not strangers: the per-client job caps stay
+        // on for servers, where they bound threads and memory per caller, and
+        // are 0 (no limit) here. Same for the per-job track ceiling — a
+        // discography is one job of several hundred tracks.
+        .env("MAX_ACTIVE_JOBS_PER_CLIENT", "0")
+        .env("MAX_TRACKS_PER_JOB", "0")
+        // Queue a discography and the dock holds more jobs than a server's
+        // poll cap allows; the overflow would just stop reporting progress.
+        .env("MAX_POLL_IDS", "0")
+        // Marks this process as the desktop shell: bot-check failures name
+        // the Settings toggle instead of a server env var.
+        .env("UNSTREAM_DESKTOP", "1")
+        // Try the TV client before web: it survives bot checks the web
+        // client no longer does, even on home connections.
+        .env("YTDLP_PLAYER_CLIENTS", "tv,web")
         .env("DOWNLOAD_WORKERS", "4")
         .env(
             "LYRICS_DB_PATH",
@@ -292,6 +399,102 @@ fn get_desktop_info(state: State<AppState>) -> serde_json::Value {
     })
 }
 
+/// Browsers actually installed here, as the ids `BROWSER_ALLOWLIST` in
+/// `backend/app/ytdlp.py` accepts.
+///
+/// The settings picker used to list all eight unconditionally, so most of
+/// what it offered could only ever fail: yt-dlp reads the browser's own
+/// cookie store, and picking one that isn't installed is an error the
+/// person only discovers mid-download. Detection is by application
+/// presence rather than by profile directory — "the browsers I have" is
+/// what the question means, and a browser that is installed but never
+/// signed into YouTube is the person's call to make, not ours.
+///
+/// An empty answer is meaningful: the UI keeps its "off" option and says
+/// it found nothing, rather than pretending the list is the whole story.
+#[tauri::command]
+fn list_installed_browsers() -> Vec<String> {
+    let mut found: Vec<String> = Vec::new();
+
+    #[cfg(target_os = "macos")]
+    {
+        // (id, application bundle name)
+        let apps = [
+            ("chrome", "Google Chrome.app"),
+            ("chromium", "Chromium.app"),
+            ("brave", "Brave Browser.app"),
+            ("edge", "Microsoft Edge.app"),
+            ("firefox", "Firefox.app"),
+            ("safari", "Safari.app"),
+            ("opera", "Opera.app"),
+            ("vivaldi", "Vivaldi.app"),
+        ];
+        // Both the system-wide folder and the per-user one; a browser
+        // dragged to ~/Applications is just as installed.
+        let mut roots = vec![PathBuf::from("/Applications")];
+        if let Some(home) = dirs::home_dir() {
+            roots.push(home.join("Applications"));
+        }
+        for (id, bundle) in apps {
+            if roots.iter().any(|root| root.join(bundle).exists()) {
+                found.push(id.to_string());
+            }
+        }
+    }
+
+    #[cfg(target_os = "windows")]
+    {
+        // Relative to each of the roots below, so a per-user install (the
+        // default for Chrome and Edge these days) counts too.
+        let apps = [
+            ("chrome", r"Google\Chrome\Application\chrome.exe"),
+            ("chromium", r"Chromium\Application\chrome.exe"),
+            ("brave", r"BraveSoftware\Brave-Browser\Application\brave.exe"),
+            ("edge", r"Microsoft\Edge\Application\msedge.exe"),
+            ("firefox", r"Mozilla Firefox\firefox.exe"),
+            ("opera", r"Opera\opera.exe"),
+            ("vivaldi", r"Vivaldi\Application\vivaldi.exe"),
+        ];
+        let roots: Vec<PathBuf> = ["ProgramFiles", "ProgramFiles(x86)", "LOCALAPPDATA"]
+            .iter()
+            .filter_map(|key| std::env::var(key).ok())
+            .map(PathBuf::from)
+            .collect();
+        for (id, relative) in apps {
+            if roots.iter().any(|root| root.join(relative).exists()) {
+                found.push(id.to_string());
+            }
+        }
+    }
+
+    #[cfg(all(unix, not(target_os = "macos")))]
+    {
+        // No bundles to look for, so fall back to what is runnable: the
+        // same PATH walk `shutil.which` does on the Python side.
+        let apps: [(&str, &[&str]); 7] = [
+            ("chrome", &["google-chrome", "google-chrome-stable"]),
+            ("chromium", &["chromium", "chromium-browser"]),
+            ("brave", &["brave-browser", "brave"]),
+            ("edge", &["microsoft-edge", "microsoft-edge-stable"]),
+            ("firefox", &["firefox"]),
+            ("opera", &["opera"]),
+            ("vivaldi", &["vivaldi", "vivaldi-stable"]),
+        ];
+        let path = std::env::var("PATH").unwrap_or_default();
+        let dirs_on_path: Vec<PathBuf> = std::env::split_paths(&path).collect();
+        for (id, binaries) in apps {
+            let present = binaries
+                .iter()
+                .any(|bin| dirs_on_path.iter().any(|dir| dir.join(bin).exists()));
+            if present {
+                found.push(id.to_string());
+            }
+        }
+    }
+
+    found
+}
+
 #[tauri::command]
 fn start_dragging(window: tauri::Window) -> Result<(), String> {
     window.start_dragging().map_err(|e| e.to_string())
@@ -351,6 +554,35 @@ fn focus_window(window: tauri::Window) -> Result<(), String> {
     Ok(())
 }
 
+/// Splash-screen "try again": kill any half-started sidecar, respawn it, and
+/// re-run the health poll. Success runs the normal boot swap.
+#[tauri::command]
+fn retry_backend(app: AppHandle, state: State<AppState>) -> Result<(), String> {
+    if let Some(mut child) = state.backend_child.lock().unwrap().take() {
+        let _ = child.kill();
+        let _ = child.wait();
+    }
+    let port = *state.port.lock().unwrap();
+    let child = spawn_backend(&app, &state, port)?;
+    *state.backend_child.lock().unwrap() = Some(child);
+
+    let handle = app.clone();
+    tauri::async_runtime::spawn(async move {
+        if wait_for_health(port, 80).await {
+            boot_ready(&handle);
+        } else if let Some(splash) = handle.get_webview_window("splash") {
+            let _ = splash.emit("backend-error", "Backend failed to start");
+        }
+    });
+    Ok(())
+}
+
+#[tauri::command]
+fn quit_app(app: AppHandle) {
+    // RunEvent::Exit below stops the sidecar, so this never orphans it.
+    app.exit(0);
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     let app_state = AppState::default();
@@ -371,30 +603,35 @@ pub fn run() {
 
     tauri::Builder::default()
         .plugin(tauri_plugin_single_instance::init(|app, args, _cwd| {
-            // Second instance: focus existing window and forward any URL arg
+            // Second instance: focus existing window and forward any URL arg.
+            // On Windows/Linux the OS spawns a new process for scheme links
+            // too, so this is also the deep-link path there — macOS/Linux
+            // runtime events arrive via on_open_url in setup() instead.
             if let Some(window) = app.get_webview_window("main") {
                 let _ = window.set_focus();
                 let _ = window.unminimize();
-                // Forward Spotify/Deezer links if passed as CLI arg
                 for arg in args.iter().skip(1) {
-                    if arg.contains("spotify.com")
-                        || arg.contains("deezer.com")
-                        || arg.contains("youtube.com")
-                        || arg.contains("youtu.be")
-                        || arg.contains("soundcloud.com")
-                        || arg.contains("music.apple.com")
-                    {
-                        let _ = window.emit("deep-link", arg.clone());
+                    if handle_incoming_url(app, arg) {
                         break;
                     }
                 }
             }
         }))
-        .plugin(tauri_plugin_window_state::Builder::new().build())
+        // Visibility is ours, not the plugin's: main starts hidden behind the
+        // splash and is shown by boot_ready(). Tracking VISIBLE would re-show
+        // (and focus) a backend-less window on every second launch. The
+        // splash is denylisted — fixed size, always centered.
+        .plugin(
+            tauri_plugin_window_state::Builder::new()
+                .with_state_flags(StateFlags::all() - StateFlags::VISIBLE)
+                .with_denylist(&["splash"])
+                .build(),
+        )
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_process::init())
         .plugin(tauri_plugin_notification::init())
+        .plugin(tauri_plugin_deep_link::init())
         .plugin(tauri_plugin_updater::Builder::new().build())
         .manage(app_state)
         .setup(|app| {
@@ -403,49 +640,43 @@ pub fn run() {
             let port = get_free_port();
             *state.port.lock().unwrap() = port;
 
-            // Restore deep-link from initial launch args as well
-            let initial_url = std::env::args().skip(1).find(|a| {
-                a.contains("spotify.com")
-                    || a.contains("deezer.com")
-                    || a.contains("youtube.com")
-                    || a.contains("youtu.be")
-                    || a.contains("soundcloud.com")
-                    || a.contains("music.apple.com")
-            });
+            // Runtime deep-link events (macOS open-url, and forwarded
+            // single-instance links with the plugin's deep-link feature).
+            // Boot-time links queue into pending_link via handle_incoming_url.
+            {
+                let handle = app_handle.clone();
+                app_handle.deep_link().on_open_url(move |event| {
+                    for url in event.urls() {
+                        handle_incoming_url(&handle, &url.to_string());
+                    }
+                });
+            }
+            if let Ok(Some(urls)) = app_handle.deep_link().get_current() {
+                for url in urls {
+                    handle_incoming_url(&app_handle, &url.to_string());
+                }
+            }
+
+            // Launch args from a first start (or a second instance whose
+            // window wasn't up yet) queue the same way.
+            for arg in std::env::args().skip(1) {
+                if handle_incoming_url(&app_handle, &arg) {
+                    break;
+                }
+            }
 
             let child = spawn_backend(&app_handle, &state, port)
                 .expect("Failed to spawn backend process");
             *state.backend_child.lock().unwrap() = Some(child);
 
-            let is_dev = cfg!(debug_assertions);
             let handle_clone = app_handle.clone();
             tauri::async_runtime::spawn(async move {
-                let ok = wait_for_health(port, 80).await;
-                if ok {
-                    if is_dev {
-                        // In dev, Tauri already loads Vite (devUrl). No navigate needed.
-                        // Just forward deep-link via event so frontend can handle it.
-                        if let Some(url_arg) = initial_url {
-                            if let Some(window) = handle_clone.get_webview_window("main") {
-                                let _ = window.emit("deep-link", url_arg);
-                            }
-                        }
-                    } else if let Some(window) = handle_clone.get_webview_window("main") {
-                        let target_url = if let Some(url_arg) = initial_url {
-                            let mut u = Url::parse(&format!("http://127.0.0.1:{}/", port)).unwrap();
-                            u.query_pairs_mut().append_pair("url", &url_arg);
-                            u.to_string()
-                        } else {
-                            format!("http://127.0.0.1:{}/", port)
-                        };
-                        if let Ok(url) = Url::parse(&target_url) {
-                            let _ = window.navigate(url);
-                        }
-                    }
+                if wait_for_health(port, 80).await {
+                    boot_ready(&handle_clone);
                 } else {
                     eprintln!("[Unstream Desktop] Backend failed to become healthy on port {}", port);
-                    if let Some(window) = handle_clone.get_webview_window("main") {
-                        let _ = window.emit("backend-error", "Backend failed to start");
+                    if let Some(splash) = handle_clone.get_webview_window("splash") {
+                        let _ = splash.emit("backend-error", "Backend failed to start");
                     }
                 }
             });
@@ -456,12 +687,15 @@ pub fn run() {
             get_downloads_dir,
             set_downloads_dir,
             get_desktop_info,
+            list_installed_browsers,
             start_dragging,
             toggle_maximize,
             minimize_window,
             close_window,
             set_progress_bar,
             focus_window,
+            retry_backend,
+            quit_app,
         ])
         .build(tauri::generate_context!())
         .expect("error while building tauri application")

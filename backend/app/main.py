@@ -22,7 +22,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, Response, StreamingResponse
 from pydantic import BaseModel
 
-from . import analytics, deezer, downloader, embed, itunes, jobs, limits, lyrics, soundcloud, ytdlp
+from . import analytics, deezer, downloader, embed, itunes, jobs, library, limits, lyrics, soundcloud, ytdlp
 from .models import Collection, ProviderError, SearchResult
 
 # Every provider here is keyless and free — no accounts, no API credentials.
@@ -456,9 +456,14 @@ def download(body: DownloadRequest, request: Request) -> dict:
             detail=f"Too many tracks — {limits.MAX_TRACKS_PER_JOB} at a time at most.",
         )
 
+    job_name = collection.name
+    if body.track_ids is not None and len(tracks) == 1:
+        # If single track selected, name folder/job after that single track
+        job_name = f"{', '.join(tracks[0].artists)} - {tracks[0].title}"
+
     visitor = limits.visitor(request)
     job = jobs.start(
-        collection.name,
+        job_name,
         tracks,
         body.quality,
         embed_lyrics=body.lyrics,
@@ -484,7 +489,9 @@ def job_statuses(ids: str) -> dict:
     list from a previous session learns which the server has already swept
     without failing the whole poll.
     """
-    wanted = [i for i in (part.strip() for part in ids.split(",")) if i][:50]
+    wanted = [i for i in (part.strip() for part in ids.split(",")) if i]
+    if limits.MAX_POLL_IDS > 0:
+        wanted = wanted[: limits.MAX_POLL_IDS]
     return {"jobs": [job.as_dict() for i in wanted if (job := jobs.get(i))]}
 
 
@@ -614,6 +621,8 @@ def job_path(job_id: str) -> dict:
 
 class DesktopConfigUpdate(BaseModel):
     downloads_dir: str | None = None
+    # Browser to read YouTube cookies from (see app/ytdlp.py). Empty clears.
+    cookies_from_browser: str | None = None
 
 
 @app.post("/api/desktop/config")
@@ -621,8 +630,14 @@ def update_desktop_config(payload: DesktopConfigUpdate) -> dict:
     """Dynamically update downloads directory in the running backend."""
     if payload.downloads_dir:
         jobs.set_downloads_dir(payload.downloads_dir)
+    if payload.cookies_from_browser is not None:
+        try:
+            ytdlp.set_cookies_from_browser(payload.cookies_from_browser)
+        except ValueError:
+            raise HTTPException(status_code=400, detail="Unsupported browser")
     return {
         "downloads_dir": str(jobs.DOWNLOADS_DIR.resolve()),
+        "cookies_from_browser": ytdlp.cookies_from_browser() or None,
     }
 
 
@@ -631,7 +646,77 @@ def get_desktop_config() -> dict:
     """Return currently active backend configuration."""
     return {
         "downloads_dir": str(jobs.DOWNLOADS_DIR.resolve()),
+        "cookies_from_browser": ytdlp.cookies_from_browser() or None,
     }
+
+
+@app.get("/api/library")
+def library_list() -> dict:
+    """Every playable file under the downloads folder, newest first."""
+    tracks = library.scan()
+    return {
+        "root": str(jobs.DOWNLOADS_DIR.resolve()),
+        "tracks": [t.as_dict() for t in tracks],
+    }
+
+
+@app.get("/api/library/file/{file_id}")
+def library_file(file_id: str, request: Request) -> FileResponse:
+    """Stream one library track. Ids are hashes, resolved inside the
+    downloads folder — anything else is a 404, never a path."""
+    limits.enforce("file", request)
+    path = library.resolve(file_id)
+    if path is None:
+        raise HTTPException(status_code=404, detail="Track not ready")
+    return FileResponse(
+        path,
+        media_type=_MEDIA_TYPES.get(path.suffix.lower(), "application/octet-stream"),
+        filename=path.name,
+    )
+
+
+@app.get("/api/library/cover/{file_id}")
+def library_cover(file_id: str, request: Request) -> Response:
+    """Embedded cover art for one library track.
+
+    A library view asks for one of these per row, so the answer is priced
+    like a static asset: an ETag off the file's own mtime and size, an
+    immutable-ish max-age, and a 304 for anything the browser already holds.
+    Re-tagging a file changes its mtime, which changes the ETag, which is
+    what makes new art appear without a hard reload.
+    """
+    path = library.resolve(file_id)
+    if path is None:
+        raise HTTPException(status_code=404, detail="Track not ready")
+    try:
+        stat = path.stat()
+    except OSError:
+        raise HTTPException(status_code=404, detail="Track not ready") from None
+    etag = f'"{file_id[:16]}-{int(stat.st_mtime)}-{stat.st_size}"'
+    headers = {"ETag": etag, "Cache-Control": "private, max-age=86400"}
+    if request.headers.get("if-none-match") == etag:
+        return Response(status_code=304, headers=headers)
+    art = library.cover(file_id)
+    if art is None:
+        # 404 rather than a placeholder: the <img> falls back to the note
+        # glyph, and a negative answer this cheap is worth caching too.
+        return Response(status_code=404, headers={"Cache-Control": "private, max-age=300"})
+    data, mime = art
+    return Response(content=data, media_type=mime, headers=headers)
+
+
+@app.get("/api/library/lyrics/{file_id}")
+def library_lyrics(file_id: str) -> dict:
+    """Lyrics already on disk for one library track — no network.
+
+    This is what makes karaoke work on a plane: the sidecar `.lrc` written
+    at download time carries the timings, the embedded frame carries the
+    words. A 404 here is the client's cue to try the online lookup.
+    """
+    found = library.lyrics_for(file_id)
+    if found is None:
+        raise HTTPException(status_code=404, detail="No lyrics on disk")
+    return found
 
 
 class _ZipSink(io.RawIOBase):
@@ -832,6 +917,14 @@ def admin_extraction(request: Request) -> dict:
 @app.get("/{full_path:path}", include_in_schema=False)
 def serve_spa(full_path: str) -> Response:
     """Serve built frontend assets, with SPA fallback to index.html."""
+    # An unmatched /api path is a bug or a version skew, never a client
+    # route — and answering it with 200 text/html is the worst possible
+    # shape: an <img> shows a broken cover, a JSON caller parses the page
+    # as an empty object, and nothing anywhere reports an error. A desktop
+    # build whose frontend is newer than its backend hits exactly this, so
+    # the honest 404 is what lets callers fall back deliberately.
+    if full_path in ("api", "health") or full_path.startswith(("api/", "health/")):
+        raise HTTPException(status_code=404, detail="Not Found")
     static_dir_str = os.getenv("UNSTREAM_STATIC_DIR", "")
     if not static_dir_str:
         raise HTTPException(status_code=404, detail="Not Found")

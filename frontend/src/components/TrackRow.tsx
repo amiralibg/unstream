@@ -84,9 +84,7 @@ export function TrackRow({
               'tap-target grid size-5 shrink-0 place-items-center rounded-[6px] border transition-all duration-150 active:scale-90',
               selected
                 ? 'border-lime-flash bg-lime-flash text-lime-ink'
-                : // Unselected boxes recede until the row is hovered, which
-                  // never happens on a phone — dim only where hover exists.
-                  'border-ink-600 text-transparent pointer-fine:opacity-40 pointer-fine:group-hover:opacity-100 hover:border-ink-400',
+                : 'border-ink-500/80 bg-ink-900/60 text-transparent hover:border-lime-flash/60',
             )}
           >
             {selected && <Check className="size-3 animate-pop" strokeWidth={3.5} />}

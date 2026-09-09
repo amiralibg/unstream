@@ -1,0 +1,158 @@
+<!doctype html>
+<!-- Tauri boot splash for Unstream Desktop. Vite copies public/ into dist, so
+  the Rust shell can point its splash window at this file in both dev and
+  release. It is also served by the backend static dir — harmless, nobody
+  links it. Self-contained on purpose: no fonts, no build step. -->
+<html lang="fa" dir="rtl">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Unstream</title>
+    <style>
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+      }
+      html,
+      body {
+        height: 100%;
+      }
+      body {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background: #0a0c09;
+        color: #f2f5ec;
+        font-family: Tahoma, sans-serif;
+        -webkit-user-select: none;
+        user-select: none;
+        cursor: default;
+      }
+      .card {
+        text-align: center;
+        padding: 24px;
+      }
+      .mark {
+        display: inline-grid;
+        place-items: center;
+        width: 56px;
+        height: 56px;
+        border-radius: 16px;
+        background: #c8f24f;
+        box-shadow: 0 8px 28px rgba(200, 242, 79, 0.22);
+      }
+      .name {
+        margin-top: 14px;
+        font-size: 20px;
+        font-weight: 700;
+      }
+      .status {
+        margin-top: 8px;
+        font-size: 12px;
+        color: #9aa294;
+        min-height: 18px;
+      }
+      .spinner {
+        margin: 18px auto 0;
+        width: 22px;
+        height: 22px;
+        border-radius: 50%;
+        border: 2px solid rgba(255, 255, 255, 0.12);
+        border-top-color: #c8f24f;
+        animation: spin 0.9s linear infinite;
+      }
+      @keyframes spin {
+        to {
+          transform: rotate(360deg);
+        }
+      }
+      #error {
+        display: none;
+      }
+      #error .status {
+        color: #ff7a7a;
+      }
+      #error .row {
+        display: flex;
+        gap: 8px;
+        justify-content: center;
+        margin-top: 16px;
+      }
+      #error button {
+        font-family: inherit;
+        font-size: 12px;
+        font-weight: 700;
+        border-radius: 9px;
+        padding: 8px 16px;
+        cursor: pointer;
+        border: 1px solid rgba(255, 255, 255, 0.1);
+      }
+      #retry {
+        background: #c8f24f;
+        color: #131607;
+        border: none;
+      }
+      #quit {
+        background: transparent;
+        color: #f2f5ec;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="card">
+      <span class="mark" aria-hidden="true">
+        <svg
+          width="28"
+          height="28"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="#131607"
+          stroke-width="2.4"
+          stroke-linecap="round"
+        >
+          <path d="M4 10v4" />
+          <path d="M8 7v10" />
+          <path d="M12 4v16" />
+          <path d="M16 8v8" />
+          <path d="M20 10v4" />
+        </svg>
+      </span>
+      <p class="name">آنستریم</p>
+      <div id="loading">
+        <p class="status">در حال آماده‌سازی موتور محلی…</p>
+        <div class="spinner"></div>
+      </div>
+      <div id="error">
+        <p class="status">موتور محلی اجرا نشد. اتصال اینترنت لازم نیست — دوباره تلاش کن.</p>
+        <div class="row">
+          <button id="retry" type="button">تلاش دوباره</button>
+          <button id="quit" type="button">خروج</button>
+        </div>
+      </div>
+    </div>
+    <script>
+      ;(async () => {
+        const tauri = window.__TAURI__
+        if (!tauri) return
+        const { listen } = tauri.event
+        const { invoke } = tauri.core
+        await listen('backend-error', () => {
+          document.getElementById('loading').style.display = 'none'
+          document.getElementById('error').style.display = 'block'
+        })
+        document.getElementById('retry').addEventListener('click', async () => {
+          document.getElementById('error').style.display = 'none'
+          document.getElementById('loading').style.display = 'block'
+          try {
+            await invoke('retry_backend')
+          } catch {
+            document.getElementById('loading').style.display = 'none'
+            document.getElementById('error').style.display = 'block'
+          }
+        })
+        document.getElementById('quit').addEventListener('click', () => invoke('quit_app'))
+      })()
+    </script>
+  </body>
+</html>

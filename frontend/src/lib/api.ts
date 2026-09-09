@@ -25,14 +25,7 @@ export interface Collection {
 }
 
 export type TrackStatus =
-  | 'queued'
-  | 'searching'
-  | 'downloading'
-  | 'tagging'
-  | 'retrying'
-  | 'done'
-  | 'error'
-  | 'cancelled'
+  'queued' | 'searching' | 'downloading' | 'tagging' | 'retrying' | 'done' | 'error' | 'cancelled'
 
 export interface JobTrack {
   id: string
@@ -290,3 +283,53 @@ export const trackFileUrl = (jobId: string, trackId: string) =>
   `/api/jobs/${jobId}/tracks/${trackId}/file`
 
 export const jobZipUrl = (jobId: string) => `/api/jobs/${jobId}/zip`
+
+/** One playable file from the on-disk library. Tags come from the file
+ *  itself; anything the tags don't name arrives empty and the UI falls
+ *  back to the filename-derived title. */
+export interface LibraryTrack {
+  id: string
+  title: string
+  artist: string
+  album: string
+  duration_ms: number
+  size: number
+  mtime: number
+  has_lyrics: boolean
+  has_cover: boolean
+}
+
+export async function getLibrary(): Promise<LibraryTrack[]> {
+  const { data } = await client.get<{ root: string; tracks: LibraryTrack[] }>('/library')
+  return data.tracks
+}
+
+export const libraryFileUrl = (fileId: string) => `/api/library/file/${fileId}`
+
+/** Embedded cover art. Served with an ETag, so the browser revalidates
+ *  instead of re-decoding; a track with no art answers 404 and the caller
+ *  shows its own glyph. */
+export const libraryCoverUrl = (fileId: string) => `/api/library/cover/${fileId}`
+
+/** Lyrics already on the machine — the sidecar `.lrc` written at download
+ *  time, or the embedded frame. Null when the track carries neither, which
+ *  is the caller's cue to try the online lookup. */
+export async function getLibraryLyrics(fileId: string): Promise<Lyrics | null> {
+  try {
+    const { data } = await client.get<{ plain: string; synced: string; source: string }>(
+      `/library/lyrics/${fileId}`,
+    )
+    // A backend older than this frontend has no such route, and the SPA
+    // fallback used to answer it with index.html — which parses into an
+    // object with no `plain` and reads as "this song has no lyrics".
+    // Anything that isn't recognisably lyrics means go to the network.
+    if (typeof data !== 'object' || data === null) return null
+    const plain = typeof data.plain === 'string' ? data.plain : ''
+    const synced = typeof data.synced === 'string' ? data.synced : ''
+    if (!plain && !synced) return null
+    return { status: 'found', plain: plain || null, synced: synced || null, source: 'file' }
+  } catch (err) {
+    if (axios.isAxiosError(err) && err.response?.status === 404) return null
+    throw err
+  }
+}

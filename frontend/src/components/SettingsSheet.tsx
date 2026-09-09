@@ -25,7 +25,9 @@ export function SettingsSheet({ onClose }: { onClose: () => void }) {
   const [updateStatus, setUpdateStatus] = useState<string | null>(null)
   const [checkingUpdate, setCheckingUpdate] = useState(false)
   const [installing, setInstalling] = useState(false)
-  const [updateAvailable, setUpdateAvailable] = useState<{ version: string; body: string } | null>(null)
+  const [updateAvailable, setUpdateAvailable] = useState<{ version: string; body: string } | null>(
+    null,
+  )
 
   useEffect(() => {
     if (desktop) {
@@ -103,7 +105,12 @@ export function SettingsSheet({ onClose }: { onClose: () => void }) {
                     {m.settings.changeFolder}
                   </button>
                 </div>
-                <p className="rounded-ctl bg-ink-900/80 p-2 text-micro text-ink-300 break-all font-mono border border-ink-800">
+                {/* LTR: a leading "~" or "/" is direction-neutral, so the
+                    Farsi page would otherwise reorder the path's segments. */}
+                <p
+                  dir="ltr"
+                  className="rounded-ctl bg-ink-900/80 p-2 text-start text-micro text-ink-300 break-all font-mono border border-ink-800"
+                >
                   {downloadsDir || '...'}
                 </p>
               </div>
@@ -122,9 +129,7 @@ export function SettingsSheet({ onClose }: { onClose: () => void }) {
                   </button>
                 </div>
                 {updateStatus && (
-                  <p className="text-micro text-lime-flash font-medium">
-                    {updateStatus}
-                  </p>
+                  <p className="text-micro text-lime-flash font-medium">{updateStatus}</p>
                 )}
                 {updateAvailable && (
                   <button
@@ -133,10 +138,10 @@ export function SettingsSheet({ onClose }: { onClose: () => void }) {
                     disabled={installing}
                     className="mt-2 flex w-full items-center justify-center gap-1.5 rounded-ctl bg-lime-flash px-3 py-1.5 text-xs font-semibold text-ink-950 transition hover:bg-lime-soft disabled:opacity-50"
                   >
-                    {installing ? (
-                      <RefreshCw className="size-3 animate-spin" />
-                    ) : null}
-                    {installing ? m.settings.installing ?? 'Installing…' : m.settings.installUpdate ?? 'Install & relaunch'}
+                    {installing ? <RefreshCw className="size-3 animate-spin" /> : null}
+                    {installing
+                      ? (m.settings.installing ?? 'Installing…')
+                      : (m.settings.installUpdate ?? 'Install & relaunch')}
                   </button>
                 )}
               </div>
@@ -146,11 +151,22 @@ export function SettingsSheet({ onClose }: { onClose: () => void }) {
         {/* Built by — only place it shows in the desktop app */}
         <div className="pt-4 mt-2 border-t border-ink-800 flex flex-wrap items-center justify-center gap-x-1.5 gap-y-1 text-xs text-ink-500">
           <span>Built by</span>
-          <a href="https://x.com/_amiralibgi" target="_blank" rel="noreferrer" className="flex items-center gap-1 font-medium text-ink-400 underline decoration-ink-700 underline-offset-2 hover:text-lime-flash hover:decoration-lime-flash/40">
-            <img src="/amirali.jpg" alt="" className="size-4 rounded-full object-cover" /> amiralibgi
+          <a
+            href="https://x.com/_amiralibgi"
+            target="_blank"
+            rel="noreferrer"
+            className="flex items-center gap-1 font-medium text-ink-400 underline decoration-ink-700 underline-offset-2 hover:text-lime-flash hover:decoration-lime-flash/40"
+          >
+            <img src="/amirali.jpg" alt="" className="size-4 rounded-full object-cover" />{' '}
+            amiralibgi
           </a>
           <span>and</span>
-          <a href="https://x.com/yazdanctx" target="_blank" rel="noreferrer" className="flex items-center gap-1 font-medium text-ink-400 underline decoration-ink-700 underline-offset-2 hover:text-lime-flash hover:decoration-lime-flash/40">
+          <a
+            href="https://x.com/yazdanctx"
+            target="_blank"
+            rel="noreferrer"
+            className="flex items-center gap-1 font-medium text-ink-400 underline decoration-ink-700 underline-offset-2 hover:text-lime-flash hover:decoration-lime-flash/40"
+          >
             <img src="/yazdan.jpg" alt="" className="size-4 rounded-full object-cover" /> yazdanctx
           </a>
         </div>

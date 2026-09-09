@@ -99,7 +99,15 @@ launcher, no code change: `DOWNLOADS_TTL_HOURS=0`, `MAX_DOWNLOADS_GB=0`
 (`jobs.py:36,47`), `RATE_LIMITS_ENABLED=false`, `DOWNLOAD_WORKERS=4`,
 `LYRICS_DB_PATH` / `ANALYTICS_DB_PATH` → the OS app-data dir, `YTDLP_CACHE_DIR`
 → the OS cache dir. `ADMIN_TOKEN` stays unset, which already disables analytics
-and `/admin` entirely.
+and `/admin` entirely. The launcher additionally sets what a single-user
+machine wants and a server must never have: `MAX_ACTIVE_JOBS_PER_CLIENT=0`
+and `MAX_TRACKS_PER_JOB=0` (both mean "no limit", per `main.py`'s `> 0`
+guards), `UNSTREAM_DESKTOP=1` (bot-check errors name the Settings toggle
+instead of a server env var), and `YTDLP_PLAYER_CLIENTS=tv,web` (the TV
+client survives bot checks the web client no longer does, even on home
+connections). `YTDLP_COOKIES_FROM_BROWSER` stays unset until the person picks
+a browser in Settings — their own account on their own machine, which is why
+cookies are a fix on desktop and a bannable liability on a server.
 
 ### 2. Packaging the sidecar
 

@@ -11,8 +11,19 @@ import {
 export function isDesktop(): boolean {
   return (
     typeof window !== 'undefined' &&
-    ('__TAURI_INTERNALS__' in window || '__TAURI__' in window)
+    ('__TAURI_INTERNALS__' in window ||
+      '__TAURI__' in window ||
+      (import.meta.env.DEV && new URLSearchParams(window.location.search).has('desktop-preview')))
   )
+}
+
+/** macOS, where the window's traffic lights are drawn by the OS over the
+ *  webview's physical top-left. Anything a full-screen view puts in that
+ *  corner lands underneath them, so overlays reserve the space — see the
+ *  76px inset in `DesktopTitleBar`. */
+export function isMacOS(): boolean {
+  if (typeof navigator === 'undefined') return true
+  return /Mac|iPhone|iPod|iPad/i.test(navigator.userAgent || navigator.platform)
 }
 
 export async function getDownloadsDir(): Promise<string> {
@@ -51,6 +62,53 @@ export async function setDownloadsDir(path: string): Promise<boolean> {
     return true
   } catch (err) {
     console.error('Failed to sync downloads dir to backend:', err)
+    return false
+  }
+}
+
+export interface BackendDesktopConfig {
+  downloads_dir: string
+  cookies_from_browser: string | null
+}
+
+export async function getBackendDesktopConfig(): Promise<BackendDesktopConfig | null> {
+  if (!isDesktop()) return null
+  try {
+    const res = await fetch('/api/desktop/config')
+    if (res.ok) return (await res.json()) as BackendDesktopConfig
+  } catch {
+    // backend not up yet — settings shows the default until it is
+  }
+  return null
+}
+
+/** Live-switch which browser YouTube cookies are read from ("" clears it).
+ *  Takes effect on the next download, no restart. */
+/** Browser ids installed on this machine, in `BROWSER_ALLOWLIST` order.
+ *
+ *  Empty means either "none found" or "not the desktop app" — the caller
+ *  treats both the same way, by saying so rather than by offering a list
+ *  of browsers that aren't there. */
+export async function listInstalledBrowsers(): Promise<string[]> {
+  if (!isDesktop()) return []
+  try {
+    return (await invoke<string[]>('list_installed_browsers')) ?? []
+  } catch {
+    return []
+  }
+}
+
+export async function setCookiesFromBrowser(browser: string): Promise<boolean> {
+  if (!isDesktop()) return false
+  try {
+    const res = await fetch('/api/desktop/config', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ cookies_from_browser: browser }),
+    })
+    return res.ok
+  } catch (err) {
+    console.error('Failed to set cookies browser:', err)
     return false
   }
 }
@@ -183,10 +241,7 @@ export async function focusMainWindow(): Promise<void> {
   }
 }
 
-export async function notifyDownloadComplete(
-  title: string,
-  body: string,
-): Promise<void> {
+export async function notifyDownloadComplete(title: string, body: string): Promise<void> {
   if (!isDesktop()) return
   try {
     let granted = await isPermissionGranted()

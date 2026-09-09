@@ -35,7 +35,7 @@ from yt_dlp.utils import DownloadCancelled
 
 from . import analytics, lyrics
 from .models import Track
-from .ytdlp import base_opts
+from .ytdlp import base_opts, bot_check_message
 
 # A candidate must be within this many seconds of the catalog duration.
 MAX_DURATION_DRIFT = 20
@@ -61,16 +61,10 @@ class DownloadError(Exception):
 # YouTube's answer to an address it doesn't trust. It arrives at the
 # playability check, before a PO token is asked for and before a challenge
 # exists to solve, so neither the provider nor the solver in app/ytdlp.py ever
-# gets a turn — only a cookie gets past it.
+# gets a turn — only a cookie gets past it. The sentence the user reads comes
+# from ytdlp.bot_check_message(), which names the fix available where they are.
 _BOT_CHECK_RE = re.compile(
     r"Sign in to confirm you.{0,3}re not a bot|LOGIN_REQUIRED", re.IGNORECASE
-)
-
-_BOT_CHECK_MESSAGE = (
-    "YouTube asked this server to sign in to confirm it is not a bot, so the "
-    "audio could not be fetched. Datacenter and VPN addresses get this long "
-    "before a home connection does. Point YTDLP_COOKIEFILE at a cookies.txt "
-    "exported from a signed-in throwaway account to get past it."
 )
 
 
@@ -422,7 +416,21 @@ def embed_tags(path: Path, track: Track, lyrics_text: str | None = None) -> None
         tagger(path, track, _cover_bytes(track), lyrics_text)
 
 
-def _find_lyrics(track: Track) -> str | None:
+def _write_lrc(audio: Path, synced: str) -> None:
+    """Drop the time-synced lyric next to the audio as `<stem>.lrc`.
+
+    The embedded frame can only hold words; timings have to live in a
+    sidecar, which is also the convention every desktop player already
+    reads. This is what lets the karaoke view run with no network — the
+    file and its timings travel together.
+    """
+    try:
+        audio.with_suffix(".lrc").write_text(synced, encoding="utf-8")
+    except OSError:
+        pass  # a lyric is never worth failing a download over
+
+
+def _find_lyrics(track: Track) -> lyrics.Lyrics | None:
     """Best-effort lyrics for embedding. Never raises, never blocks a download.
 
     Same contract as cover art: nice to have, silent when it fails.
@@ -434,16 +442,16 @@ def _find_lyrics(track: Track) -> str | None:
     reading, since what it means is that we did not get an answer.
     """
     artist = ", ".join(track.artists)
-    outcome, plain = "unavailable", None
+    outcome, result = "unavailable", None
     try:
         found = lyrics.fetch(artist, track.title, track.album, track.duration_ms / 1000)
         outcome = "found" if found else "absent"
-        plain = found.plain if found else None
+        result = found or None
     except Exception:
         pass  # a lyric is never worth failing a download over
     # `record` swallows its own errors, so counting cannot cost a download.
     analytics.record("lyrics_embed", detail=outcome, label=f"{artist} - {track.title}")
-    return plain
+    return result
 
 
 def download_track(
@@ -525,7 +533,10 @@ def download_track(
             )
 
             on_progress("tagging", 1.0)
-            embed_tags(audio, track, _find_lyrics(track) if embed_lyrics else None)
+            found = _find_lyrics(track) if embed_lyrics else None
+            embed_tags(audio, track, found.plain if found else None)
+            if found and found.synced:
+                _write_lrc(audio, found.synced)
             return audio
         except Cancelled:
             # Whatever came down is half a song nobody asked to keep, and the
@@ -543,7 +554,7 @@ def download_track(
     # unrelated upload happened to say — "This video is DRM protected", most
     # often. Reporting it verbatim hides the one cause an operator can act on.
     if bot_checked:
-        raise DownloadError(_BOT_CHECK_MESSAGE) from last_error
+        raise DownloadError(bot_check_message()) from last_error
     raise DownloadError(
         f"Failed after {attempts} attempts: {last_error}"
     ) from last_error

@@ -70,6 +70,11 @@ MAX_ACTIVE_JOBS = int(os.getenv("MAX_ACTIVE_JOBS_PER_CLIENT", "3"))
 # resolve everything and then refuse to download it. Downloads still run on a
 # few threads and a playlist of this size is a bounded, visible unit of work.
 MAX_TRACKS_PER_JOB = int(os.getenv("MAX_TRACKS_PER_JOB", "500"))
+# How many job ids one poll may ask about. This bounds the response, not the
+# caller's fair share — but a client with more jobs than the cap silently
+# stops hearing about the overflow, which on a desktop queuing a discography
+# is a stuck progress bar. 0 means no limit, same as the two above.
+MAX_POLL_IDS = int(os.getenv("MAX_POLL_IDS", "50"))
 
 
 def client_ip(request: Request) -> str:

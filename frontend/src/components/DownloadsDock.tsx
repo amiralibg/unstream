@@ -116,7 +116,7 @@ function TrackLine({
             ext={ext}
             size="compact"
           />
-            {isTauri() ? (
+          {isTauri() ? (
             <button
               type="button"
               onClick={() => {
@@ -152,7 +152,11 @@ function TrackLine({
           className="tap-target flex shrink-0 items-center gap-1 rounded-ctl border border-danger/40 px-2 py-0.5 text-micro font-medium text-danger transition hover:bg-danger/10 disabled:opacity-50"
           title={state.error ?? m.dock.failed}
         >
-          {retrying ? <LoaderCircle className="size-3 animate-spin" /> : <RefreshCw className="size-3" />}
+          {retrying ? (
+            <LoaderCircle className="size-3 animate-spin" />
+          ) : (
+            <RefreshCw className="size-3" />
+          )}
           {m.dock.retry ?? 'Retry'}
         </button>
       ) : state.status === 'cancelled' ? (
@@ -287,8 +291,8 @@ function JobCard({ entry, capped = true }: { entry: DownloadEntry; capped?: bool
         >
           {qualityLabel(entry.quality, m)}
         </span>
-        {showZip && (
-          isTauri() ? (
+        {showZip &&
+          (isTauri() ? (
             <button
               type="button"
               onClick={() => {
@@ -315,8 +319,7 @@ function JobCard({ entry, capped = true }: { entry: DownloadEntry; capped?: bool
             >
               <Archive className="size-3.5" />
             </a>
-          )
-        )}
+          ))}
         {finished && failed > 0 && !expired && (
           <button
             onClick={onRetryAll}
@@ -585,55 +588,9 @@ export function DownloadsDock() {
     .reverse()
     .map((entry) => <JobCard key={entry.jobId} entry={entry} capped={entries.length > 1} />)
 
-  // App (Tauri) gets a persistent bottom bar, not a floating FAB
+  // Web keeps FAB + centered panel + bottom sheet. Desktop (Tauri) has dedicated sidebar tab.
   if (isApp) {
-    const collapsed = !panelOpen
-    return (
-      <div className="fixed inset-x-0 bottom-0 z-30 flex flex-col border-t border-ink-800 bg-ink-900/95 backdrop-blur-xl shadow-[0_-8px_32px_rgba(0,0,0,0.5)]">
-        <button
-          type="button"
-          onClick={() => setPanelOpen(!panelOpen)}
-          className="flex w-full items-center gap-3 px-4 py-2.5 text-start hover:bg-ink-800/50 transition"
-        >
-          <span className="relative grid size-8 place-items-center rounded-full bg-lime-flash text-lime-ink shrink-0">
-            {activeCount > 0 ? <ArrowDownToLine className="size-4" strokeWidth={2.25} /> : <Check className="size-4" strokeWidth={2.25} />}
-            {activeCount > 0 && (
-              <svg viewBox="0 0 56 56" className="absolute inset-0 -rotate-90 size-8">
-                <circle cx="28" cy="28" r="26" fill="none" className="stroke-lime-ink/25" strokeWidth="3" />
-                <circle
-                  cx="28"
-                  cy="28"
-                  r="26"
-                  fill="none"
-                  className="stroke-lime-ink"
-                  strokeWidth="3"
-                  strokeLinecap="round"
-                  strokeDasharray={2 * Math.PI * 26}
-                  strokeDashoffset={2 * Math.PI * 26 * (1 - fraction)}
-                />
-              </svg>
-            )}
-          </span>
-          <span className="flex-1 min-w-0">
-            <span className="block text-xs font-semibold text-ink-100 leading-none">{m.dock.heading}</span>
-            <span className="block text-[11px] text-ink-400 tabular-nums mt-0.5">{summary} {activeCount > 0 && fraction > 0 && `· ${Math.round(fraction * 100)}%`}</span>
-          </span>
-          {activeCount > 0 ? (
-            <span className="text-[11px] font-medium text-lime-flash tabular-nums">{m.app.num(activeCount)} {m.dock.activeSummary(activeCount).replace(/^[0-9]+ /, '')}</span>
-          ) : null}
-          <ChevronDown className={clsx('size-4 shrink-0 text-ink-400 transition-transform', collapsed && '-rotate-180')} />
-        </button>
-        {/* Progress hairline */}
-        {activeCount > 0 && (
-          <div className="h-0.5 w-full bg-ink-800">
-            <div className="h-full bg-lime-flash transition-[width] duration-500" style={{ width: `${fraction * 100}%` }} />
-          </div>
-        )}
-        <div className={clsx('overflow-y-auto overscroll-contain transition-[max-height] duration-300', collapsed ? 'max-h-0' : 'max-h-[34vh]')}>
-          <div className="divide-y divide-ink-800/50">{cards}</div>
-        </div>
-      </div>
-    )
+    return null
   }
 
   return (
@@ -667,7 +624,14 @@ export function DownloadsDock() {
       >
         {activeCount > 0 && (
           <svg viewBox="0 0 56 56" className="absolute inset-0 -rotate-90">
-            <circle cx="28" cy="28" r="26" fill="none" className="stroke-lime-ink/20" strokeWidth="2.5" />
+            <circle
+              cx="28"
+              cy="28"
+              r="26"
+              fill="none"
+              className="stroke-lime-ink/20"
+              strokeWidth="2.5"
+            />
             <circle
               cx="28"
               cy="28"
@@ -681,7 +645,11 @@ export function DownloadsDock() {
             />
           </svg>
         )}
-        {panelOpen ? <ChevronDown className="size-5" strokeWidth={2.25} /> : <ArrowDownToLine className="size-5" strokeWidth={2.25} />}
+        {panelOpen ? (
+          <ChevronDown className="size-5" strokeWidth={2.25} />
+        ) : (
+          <ArrowDownToLine className="size-5" strokeWidth={2.25} />
+        )}
         {activeCount > 0 && !panelOpen && (
           <span className="absolute -top-0.5 -end-0.5 grid min-w-5 animate-pop place-items-center rounded-full border border-lime-flash bg-ink-950 px-1 text-micro font-semibold text-lime-flash tabular-nums">
             {m.app.num(activeCount)}

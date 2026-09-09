@@ -23,6 +23,7 @@ import {
   type SearchResult,
   type Track,
 } from './api'
+import { isDesktop } from './desktop'
 
 /** All the dock needs of a track — the job payload carries ids but no titles.
  *  Narrow because the whole entry goes to localStorage. */
@@ -85,14 +86,28 @@ const isFinished = (e: DownloadEntry) => e.job?.finished ?? false
 /** Nothing more will ever arrive for this entry, so stop polling it. */
 const isSettled = (e: DownloadEntry) => e.expired === true || isFinished(e)
 
+/** Cheap signature of everything the UI renders for a job. Progress is
+ *  quantized — a tick that moved a bar by less than half a percent is not a
+ *  state change worth re-rendering the whole tree for. */
+function jobSignature(job: Job | null, etaSeconds: number | null): string {
+  if (!job) return `null:${etaSeconds}`
+  const tracks = job.tracks
+    .map((t) => `${t.status}:${Math.round(t.progress * 200)}:${t.error ?? ''}`)
+    .join(',')
+  return `${job.done}/${job.failed}/${job.cancelled}/${job.finished}/${etaSeconds ?? '-'}/${tracks}`
+}
+
 const QUALITY_KEY = 'unstream:quality'
 const LYRICS_KEY = 'unstream:lyrics'
 const JOBS_KEY = 'unstream:jobs'
 
 /** Mirrors DOWNLOADS_TTL_HOURS in backend/app/jobs.py — past this a stored
- *  entry can only ever resolve to "expired", so it is dropped up front. */
-const JOBS_TTL_MS = 24 * 60 * 60 * 1000
-const MAX_STORED_JOBS = 20
+ *  entry can only ever resolve to "expired", so it is dropped up front.
+ *  Desktop keeps far more history: its files live in ~/Music/Unstream with
+ *  no server-side sweep (DOWNLOADS_TTL_HOURS=0), so the library outlives
+ *  the web's one-day dock. */
+const JOBS_TTL_MS = isDesktop() ? 30 * 24 * 60 * 60 * 1000 : 24 * 60 * 60 * 1000
+const MAX_STORED_JOBS = isDesktop() ? 100 : 20
 
 function storedQuality(): Quality {
   try {
@@ -232,23 +247,43 @@ export function DownloadsProvider({ children }: { children: ReactNode }) {
     [patch],
   )
 
-  const retry = useCallback(async (jobId: string) => {
-    const job = await retryJob(jobId)
-    patch(jobId, { job, expired: false, etaSeconds: null })
-  }, [patch])
+  const retry = useCallback(
+    async (jobId: string) => {
+      const job = await retryJob(jobId)
+      patch(jobId, { job, expired: false, etaSeconds: null })
+    },
+    [patch],
+  )
 
-  const retryOne = useCallback(async (jobId: string, trackId: string) => {
-    const job = await retryTrack(jobId, trackId)
-    patch(jobId, { job, expired: false })
-  }, [patch])
+  const retryOne = useCallback(
+    async (jobId: string, trackId: string) => {
+      const job = await retryTrack(jobId, trackId)
+      patch(jobId, { job, expired: false })
+    },
+    [patch],
+  )
 
   const dismiss = useCallback((jobId: string) => {
     setEntries((prev) => prev.filter((e) => e.jobId !== jobId))
   }, [])
 
   // One request per tick, however many jobs are in flight.
+  // Adaptive: pause while the tab is hidden, back off while the backend is
+  // unreachable, and skip the state update when nothing actually changed so
+  // idle cards don't re-render every tick.
   useEffect(() => {
+    let timer: ReturnType<typeof setInterval> | null = null
+    let failures = 0
+    const BASE_MS = 900
+    const BACKOFF_MS = 3000
+
+    const schedule = (ms: number) => {
+      if (timer) clearInterval(timer)
+      timer = setInterval(tick, ms)
+    }
+
     const tick = async () => {
+      if (typeof document !== 'undefined' && document.hidden) return
       const pending = entriesRef.current.filter((e) => !isSettled(e))
       if (pending.length === 0) return
 
@@ -256,7 +291,15 @@ export function DownloadsProvider({ children }: { children: ReactNode }) {
       try {
         polled = await getJobs(pending.map((e) => e.jobId))
       } catch {
-        return // network blip or a 429 — the next tick tries again
+        // Network blip, a 429, or the sidecar restarting — back off instead
+        // of hammering it at full rate, then recover on the next success.
+        failures += 1
+        if (failures === 2) schedule(BACKOFF_MS)
+        return
+      }
+      if (failures > 0) {
+        failures = 0
+        schedule(BASE_MS)
       }
       const fresh = new Map(polled.map((job) => [job.id, job]))
       // Unanswered ids are gone for good — retire them rather than poll on.
@@ -264,11 +307,18 @@ export function DownloadsProvider({ children }: { children: ReactNode }) {
       if (fresh.size === 0 && missing.length === 0) return
 
       const now = Date.now()
-      setEntries((prev) =>
-        prev.map((e) => {
+      // No new payload and no ETA movement — leave state alone so memoised
+      // cards below don't re-render on an identical tick.
+      setEntries((prev) => {
+        let changed = false
+        const next = prev.map((e) => {
           if (missing.includes(e.jobId)) {
             samplesRef.current.delete(e.jobId)
-            return { ...e, expired: true, etaSeconds: null }
+            if (!e.expired || e.etaSeconds !== null) {
+              changed = true
+              return { ...e, expired: true, etaSeconds: null }
+            }
+            return e
           }
           const job = fresh.get(e.jobId)
           if (!job) return e
@@ -289,13 +339,32 @@ export function DownloadsProvider({ children }: { children: ReactNode }) {
               etaSeconds = Math.max(1, Math.round((job.total - settled) / (dSettled / dt)))
             }
           }
-          return { ...e, job, etaSeconds }
-        }),
-      )
+          if (e.job !== job || e.etaSeconds !== etaSeconds) {
+            // Fresh payloads are new objects every poll — compare what the UI
+            // actually renders before deciding this tick changed anything.
+            if (jobSignature(e.job, e.etaSeconds) !== jobSignature(job, etaSeconds)) {
+              changed = true
+              return { ...e, job, etaSeconds }
+            }
+          }
+          return e
+        })
+        return changed ? next : prev
+      })
     }
     void tick() // restored entries are stale; don't wait for the interval
-    const timer = setInterval(tick, 900)
-    return () => clearInterval(timer)
+    schedule(BASE_MS)
+    // A hidden tab keeps no visible progress — poll on return instead.
+    const onVisible = () => {
+      if (!document.hidden) void tick()
+    }
+    document.addEventListener('visibilitychange', onVisible)
+    window.addEventListener('focus', onVisible)
+    return () => {
+      if (timer) clearInterval(timer)
+      document.removeEventListener('visibilitychange', onVisible)
+      window.removeEventListener('focus', onVisible)
+    }
   }, [])
 
   // A reload — including the silent one main.tsx performs on a hidden tab when

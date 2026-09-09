@@ -115,9 +115,12 @@ class Job:
     # queueing behind whatever else is writing track state.
     stopped: threading.Event = field(default_factory=threading.Event)
 
+    folder_name: str = ""
+
     @property
     def dir(self) -> Path:
-        return DOWNLOADS_DIR / self.id
+        target = self.folder_name or self.id
+        return DOWNLOADS_DIR / target
 
     @property
     def finished(self) -> bool:
@@ -271,9 +274,11 @@ def start(
     owner: str = "",
     visitor: str = "",
 ) -> Job:
+    folder = downloader.safe_filename(name) or uuid.uuid4().hex[:12]
     job = Job(
         id=uuid.uuid4().hex[:12],
         name=name,
+        folder_name=folder,
         quality=quality,
         embed_lyrics=embed_lyrics,
         owner=owner,
@@ -413,6 +418,9 @@ def _sweep(
         if not path.is_dir():
             continue
         job = _jobs.get(path.name)
+        if not job:
+            # Check by folder_name
+            job = next((j for j in _jobs.values() if j.folder_name == path.name or j.id == path.name), None)
         if job and not job.finished:
             continue  # never pull files out from under a running job
         measured = _measure(path)

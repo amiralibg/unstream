@@ -61,6 +61,21 @@ type Middleware = (
 
 export default defineConfig({
   plugins: [react(), tailwindcss(), runtimeConfig(), pwaServiceWorker()],
+  build: {
+    rollupOptions: {
+      output: {
+        // React and the query client change on a dependency bump, the app
+        // changes on every release. Splitting them means a release only
+        // invalidates the app chunk — the service worker keeps the rest,
+        // which is most of the bytes.
+        manualChunks: (id: string) => {
+          if (!id.includes('node_modules')) return
+          if (/[\\/]node_modules[\\/](react|react-dom|scheduler)[\\/]/.test(id)) return 'react'
+          if (id.includes('@tanstack')) return 'query'
+        },
+      },
+    },
+  },
   server: {
     proxy: {
       '/api': 'http://localhost:8000',

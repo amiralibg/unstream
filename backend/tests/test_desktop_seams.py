@@ -4,7 +4,7 @@ import os
 from pathlib import Path
 from starlette.testclient import TestClient
 
-from app import jobs, main
+from app import jobs, main, ytdlp
 from app.models import Track
 
 
@@ -84,6 +84,15 @@ def test_spa_static_files_fallback(tmp_path, monkeypatch):
     assert res.status_code == 200
     assert "Unstream" in res.text
 
+    # An unmatched /api path is never a client route. Serving index.html
+    # there would hand an <img> a page instead of a cover and a JSON caller
+    # an empty object instead of an error — which is exactly what a desktop
+    # build with a newer frontend than backend does, silently.
+    for path in ("/api/library/cover/deadbeef", "/api/nope", "/health/nope"):
+        res = client.get(path)
+        assert res.status_code == 404, path
+        assert "Unstream" not in res.text, path
+
 
 def test_job_and_track_paths(tmp_path):
     job_id = "test_job_paths_123"
@@ -159,3 +168,88 @@ def test_desktop_config_endpoints(tmp_path):
     assert res.status_code == 200
     assert res.json()["downloads_dir"] == str(custom_dir.resolve())
 
+
+def test_cookies_from_browser_env_and_opts(monkeypatch):
+    monkeypatch.setenv("YTDLP_COOKIES_FROM_BROWSER", "chrome")
+    monkeypatch.setattr(ytdlp, "_cookies_from_browser", None)
+    assert ytdlp.cookies_from_browser() == "chrome"
+    assert ytdlp.base_opts()["cookiesfrombrowser"] == ("chrome",)
+
+    # Unknown names are dropped, not passed to yt-dlp's OS-specific reader.
+    monkeypatch.setenv("YTDLP_COOKIES_FROM_BROWSER", "netscape")
+    assert ytdlp.cookies_from_browser() == ""
+    assert "cookiesfrombrowser" not in ytdlp.base_opts()
+
+
+def test_cookies_from_browser_live_switch(monkeypatch):
+    monkeypatch.setattr(ytdlp, "_cookies_from_browser", None)
+    try:
+        assert ytdlp.set_cookies_from_browser("Firefox") == "firefox"
+        assert ytdlp.base_opts()["cookiesfrombrowser"] == ("firefox",)
+        assert ytdlp.set_cookies_from_browser("") == ""
+        assert "cookiesfrombrowser" not in ytdlp.base_opts()
+    finally:
+        ytdlp._cookies_from_browser = None
+
+
+def test_player_clients_env(monkeypatch):
+    monkeypatch.setenv("YTDLP_PLAYER_CLIENTS", "tv, web, bogus name!")
+    assert ytdlp.player_clients() == ["tv", "web", "bogus name!"]
+    args = ytdlp.base_opts()["extractor_args"]
+    assert args["youtube"]["player_client"] == ["tv", "web", "bogus name!"]
+
+    monkeypatch.delenv("YTDLP_PLAYER_CLIENTS")
+    assert ytdlp.player_clients() == []
+    assert "extractor_args" not in ytdlp.base_opts()
+
+
+def test_bot_check_message_names_the_fix_where_the_reader_is(monkeypatch):
+    monkeypatch.delenv("UNSTREAM_DESKTOP", raising=False)
+    assert "YTDLP_COOKIEFILE" in ytdlp.bot_check_message()
+
+    monkeypatch.setenv("UNSTREAM_DESKTOP", "1")
+    message = ytdlp.bot_check_message()
+    assert "Browser cookies" in message
+    assert "YTDLP_COOKIEFILE" not in message
+
+
+def test_desktop_config_cookies_roundtrip(monkeypatch):
+    monkeypatch.setattr(ytdlp, "_cookies_from_browser", None)
+    client = TestClient(main.app)
+    try:
+        res = client.post("/api/desktop/config", json={"cookies_from_browser": "brave"})
+        assert res.status_code == 200
+        assert res.json()["cookies_from_browser"] == "brave"
+
+        res = client.get("/api/desktop/config")
+        assert res.json()["cookies_from_browser"] == "brave"
+
+        res = client.post("/api/desktop/config", json={"cookies_from_browser": "netscape"})
+        assert res.status_code == 400
+    finally:
+        ytdlp._cookies_from_browser = None
+
+
+
+def test_poll_id_cap_is_liftable_for_the_desktop(monkeypatch):
+    """A server bounds how many jobs one poll may ask about; the desktop
+    doesn't, because a queued discography holds more jobs than the cap and
+    the overflow would silently stop reporting progress."""
+    from app import limits
+
+    # Registered directly rather than through `start`, which would spawn
+    # download threads this test has no use for.
+    ids = []
+    for i in range(4):
+        job = jobs.Job(id=f"poll{i}", name=f"job {i}", folder_name=f"job-{i}")
+        jobs._jobs[job.id] = job
+        ids.append(job.id)
+    client = TestClient(main.app)
+    query = ",".join(ids)
+
+    monkeypatch.setattr(limits, "MAX_POLL_IDS", 2)
+    assert len(client.get(f"/api/jobs?ids={query}").json()["jobs"]) == 2
+
+    # 0 means no limit, the same as the other job caps.
+    monkeypatch.setattr(limits, "MAX_POLL_IDS", 0)
+    assert len(client.get(f"/api/jobs?ids={query}").json()["jobs"]) == 4
