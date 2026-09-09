@@ -1,7 +1,7 @@
 {
   "$schema": "https://raw.githubusercontent.com/tauri-apps/tauri/refs/heads/v2/crates/tauri-cli/schema.json",
   "productName": "Unstream",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "identifier": "xyz.amiralibg.unstream",
   "build": {
     "devUrl": "http://localhost:5173",
@@ -58,7 +58,8 @@
       "bin/": "",
       "../../backend/dist/unstream-api/": "unstream-api/",
       "../../frontend/dist/": "dist/"
-    }
+    },
+    "createUpdaterArtifacts": true
   },
   "plugins": {
     "deep-link": {
