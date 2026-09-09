@@ -87,6 +87,14 @@ jobs:
           npm ci
           npm run build
 
+      # tauri-action shells out to `npm run tauri build` in ./desktop, which
+      # needs that project's own devDependency to exist. Installing only the
+      # frontend left the CLI missing and the build died with exit 127.
+      - name: Install Tauri CLI
+        run: |
+          cd desktop
+          npm ci
+
       - name: Build Backend Bundle with PyInstaller
         run: |
           cd backend
