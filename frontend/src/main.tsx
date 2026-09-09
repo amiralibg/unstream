@@ -14,12 +14,22 @@ const queryClient = new QueryClient()
 const isAdmin = window.location.pathname.startsWith('/admin')
 const Admin = lazy(() => import('./admin/Admin.tsx'))
 
+// The desktop-app download page. Same treatment: a path, not a router, and
+// its own chunk — the release metadata it fetches is useless weight on the
+// landing page, and the landing's search code is useless weight here.
+const isDownload = !isAdmin && window.location.pathname.startsWith('/download')
+const DownloadPage = lazy(() => import('./components/DownloadPage.tsx'))
+
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
     <QueryClientProvider client={queryClient}>
       {isAdmin ? (
         <Suspense fallback={null}>
           <Admin />
+        </Suspense>
+      ) : isDownload ? (
+        <Suspense fallback={null}>
+          <DownloadPage />
         </Suspense>
       ) : (
         <App />

@@ -25,6 +25,7 @@ interface DesktopCommandPaletteProps {
 interface Action {
   id: string
   label: string
+  category?: string
   icon: typeof Search
   run: () => void
 }
@@ -60,6 +61,7 @@ export function DesktopCommandPalette({
       list.push({
         id: 'submit',
         label: isLink ? m.palette.openLink : m.palette.searchFor(trimmed),
+        category: isLink ? 'Link' : 'Search',
         icon: isLink ? Link2 : Search,
         run: () => onSubmit(trimmed),
       })
@@ -73,14 +75,15 @@ export function DesktopCommandPalette({
         icon: ArrowDownToLine,
         tab: 'downloads',
       },
-      { id: 'nav-settings', label: m.desktopNav.settings, icon: Settings, tab: 'settings' },
       { id: 'nav-library', label: m.desktopNav.library, icon: ListMusic, tab: 'library' },
+      { id: 'nav-settings', label: m.desktopNav.settings, icon: Settings, tab: 'settings' },
     ]
     for (const item of nav) {
       if (matches(item.label)) {
         list.push({
           id: item.id,
           label: item.label,
+          category: 'Navigation',
           icon: item.icon,
           run: () => onSelectTab(item.tab),
         })
@@ -91,6 +94,7 @@ export function DesktopCommandPalette({
       list.push({
         id: 'reveal-folder',
         label: m.settings.openInFinder,
+        category: 'System',
         icon: FolderOpen,
         run: () => {
           void getDownloadsDir().then((dir) => {
@@ -105,6 +109,7 @@ export function DesktopCommandPalette({
         list.push({
           id: `recent:${item.input}`,
           label: item.input,
+          category: m.palette.recent,
           icon: item.isLink ? Link2 : Search,
           run: () => onSubmit(item.input),
         })
@@ -151,7 +156,7 @@ export function DesktopCommandPalette({
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-start justify-center bg-black/55 px-4 pt-[14vh] backdrop-blur-[3px] animate-fade-up"
+      className="fixed inset-0 z-50 flex items-start justify-center bg-black/65 px-4 pt-[12vh] backdrop-blur-md animate-fade-up"
       onMouseDown={(e) => {
         if (e.target === e.currentTarget) onClose()
       }}
@@ -160,30 +165,26 @@ export function DesktopCommandPalette({
         role="dialog"
         aria-modal="true"
         aria-label={m.desktopNav.search}
-        className="w-full max-w-lg overflow-hidden rounded-2xl border border-white/10 bg-[#121510]/95 shadow-[0_30px_90px_rgba(0,0,0,0.55)] backdrop-blur-2xl"
+        className="w-full max-w-xl overflow-hidden rounded-panel border border-white/[0.14] bg-[#10130f]/95 shadow-[0_30px_90px_rgba(0,0,0,0.65)] backdrop-blur-2xl"
       >
-        <div className="flex items-center gap-2.5 border-b border-white/[0.06] px-4">
-          <Search className="size-4 shrink-0 text-ink-500" />
+        {/* Search Bar */}
+        <div className="flex items-center gap-3 border-b border-white/[0.08] px-4 py-3 bg-black/20">
+          <Search className="size-4.5 shrink-0 text-lime-flash" />
           <input
             ref={inputRef}
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             placeholder={m.palette.placeholder}
             dir="auto"
-            className="h-12 w-full bg-transparent text-sm text-ink-100 outline-none placeholder:text-ink-600"
+            className="h-9 w-full bg-transparent text-sm font-medium text-ink-100 outline-none placeholder:text-ink-500"
           />
-          <kbd className="shrink-0 rounded-md border border-white/10 bg-white/[0.04] px-1.5 py-0.5 font-sans text-[10px] text-ink-500">
+          <kbd className="shrink-0 rounded border border-white/[0.1] bg-white/[0.04] px-2 py-0.5 font-sans text-micro font-medium text-ink-400">
             esc
           </kbd>
         </div>
 
-        {trimmed.length === 0 && recent.length > 0 && (
-          <p className="px-4 pt-2.5 text-[10px] font-semibold uppercase tracking-[0.14em] text-ink-600">
-            {m.palette.recent}
-          </p>
-        )}
-
-        <ul ref={listRef} className="max-h-72 overflow-y-auto p-1.5">
+        {/* Action List */}
+        <ul ref={listRef} className="max-h-80 overflow-y-auto p-2 space-y-1">
           {actions.map((action, i) => {
             const Icon = action.icon
             const isActive = i === active
@@ -198,8 +199,10 @@ export function DesktopCommandPalette({
                     action.run()
                   }}
                   className={clsx(
-                    'flex h-10 w-full items-center gap-3 rounded-[10px] px-3 text-start text-[13px] transition duration-100',
-                    isActive ? 'bg-lime-flash/[0.1] text-ink-100' : 'text-ink-300',
+                    'flex h-11 w-full items-center gap-3 rounded-ctl px-3.5 text-start text-mini transition duration-100',
+                    isActive
+                      ? 'bg-lime-flash/[0.1] border border-lime-flash/30 text-ink-100 shadow-sm'
+                      : 'border border-transparent text-ink-300 hover:bg-white/[0.04] hover:text-ink-100',
                   )}
                 >
                   <Icon
@@ -209,20 +212,38 @@ export function DesktopCommandPalette({
                     )}
                   />
                   <span
-                    className={clsx('min-w-0 flex-1 truncate', faNumerals(action.label))}
+                    className={clsx(
+                      'min-w-0 flex-1 truncate font-medium',
+                      faNumerals(action.label),
+                    )}
                     dir="auto"
                   >
                     {action.label}
                   </span>
-                  {isActive && <CornerDownLeft className="size-3.5 shrink-0 text-ink-500" />}
+                  {isActive && (
+                    <div className="flex items-center gap-1.5 shrink-0 text-micro text-lime-flash font-mono">
+                      <span>↵</span>
+                      <CornerDownLeft className="size-3" />
+                    </div>
+                  )}
                 </button>
               </li>
             )
           })}
           {actions.length === 0 && (
-            <li className="px-3 py-6 text-center text-xs text-ink-500">{m.palette.empty}</li>
+            <li className="px-4 py-8 text-center text-mini text-ink-500">{m.palette.empty}</li>
           )}
         </ul>
+
+        {/* Footer shortcuts hint */}
+        <div className="flex items-center justify-between border-t border-white/[0.06] bg-black/40 px-4 py-2 text-[10px] text-ink-500 font-mono">
+          <div className="flex items-center gap-3">
+            <span>↑↓ Navigate</span>
+            <span>↵ Select</span>
+            <span>Esc Close</span>
+          </div>
+          <span className="text-lime-flash/60">Unstream Desktop</span>
+        </div>
       </div>
     </div>
   )

@@ -24,14 +24,16 @@ No accounts. No API keys. Nothing paid. You run it, so the files are yours and n
 
 ## Get the App (Recommended)
 
-The easiest way to run Unstream without Docker. Runs completely locally on your device with no server dependencies for audio egress and saves tagged audio directly to your music library.
+The easiest way to run Unstream without Docker — it runs completely locally on your device and saves tagged audio straight into your music library. Any running instance also has a **Download the app** page that always points at the latest release with the right file for your system.
 
-| Platform | Download | Instructions |
+| Platform | File | First-run notes |
 | --- | --- | --- |
-| **macOS (Apple Silicon)** | [Download .dmg](https://github.com/amiralibg/unstream/releases/latest) | Unsigned v1: Right-click → Open, or run `xattr -d com.apple.quarantine /Applications/Unstream.app` |
-| **macOS (Intel)** | [Download .dmg](https://github.com/amiralibg/unstream/releases/latest) | Same as above |
-| **Windows** | [Download .exe](https://github.com/amiralibg/unstream/releases/latest) | Click "More info" → "Run anyway" if SmartScreen appears |
-| **Linux** | [Download .AppImage / .deb](https://github.com/amiralibg/unstream/releases/latest) | `chmod +x` and run, or `dpkg -i` |
+| **macOS (Apple Silicon)** | `.dmg` | Unsigned build: after installing, run `sudo xattr -cr /Applications/Unstream.app`. If it still reports the app is damaged, re-sign it locally with `sudo codesign --force --deep --sign - /Applications/Unstream.app`, then right-click → Open once. |
+| **macOS (Intel)** | `.dmg` | Same as above |
+| **Windows (64-bit / ARM)** | `.exe` installer (or `.msi`) | If SmartScreen appears: "More info" → "Run anyway" |
+| **Linux (64-bit / ARM)** | `.AppImage` or `.deb` | `chmod +x` the AppImage and run it, or `sudo dpkg -i` the package |
+
+All files: <https://github.com/amiralibg/unstream/releases/latest>
 
 ## Quick start (Docker)
 
@@ -133,7 +135,7 @@ That takes effect on restart — no rebuild, even on the prebuilt images, becaus
 
 ## Can I host this for other people?
 
-Not for YouTube audio on an ordinary VPS — and this is why the [Desktop App](#get-the-desktop-app) exists.
+Not for YouTube audio on an ordinary VPS — and this is why the [Desktop App](#get-the-app) exists.
 
 YouTube treats a datacenter address differently from a home one. From a VPS it answers `LOGIN_REQUIRED` at the playability check — before a proof-of-origin token is asked for and before a JS challenge exists to solve — so the defences the image ships cannot reach the point where they'd help. From the desktop app on a home connection, none of that happens.
 

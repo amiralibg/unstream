@@ -2,7 +2,7 @@ import { Suspense, lazy, useCallback, useEffect, useRef, useState, type ReactNod
 import { useMutation } from '@tanstack/react-query'
 import { AudioLines, Link2 as LinkIcon, Search, X } from 'lucide-react'
 import clsx from 'clsx'
-import { isDesktop, notifyDownloadComplete, setWindowProgress } from './lib/desktop'
+import { isDesktop, isLocal, notifyDownloadComplete, setWindowProgress } from './lib/desktop'
 import {
   apiError,
   getArtist,
@@ -16,6 +16,7 @@ import {
   type SearchResult,
 } from './lib/api'
 import { UrlForm } from './components/UrlForm'
+import { DownloadPromo } from './components/DownloadPromo'
 import { CollectionView } from './components/CollectionView'
 import { CollectionSkeleton } from './components/CollectionSkeleton'
 import { SearchResults } from './components/SearchResults'
@@ -261,7 +262,7 @@ function YouTubeDisabledBanner() {
       .__UNSTREAM_CONFIG__?.youtubeDisabled === true
   const desktop = isDesktop()
 
-  if (!isYouTubeDisabled || desktop || closed) return null
+  if (!isYouTubeDisabled || desktop || isLocal() || closed) return null
 
   return (
     <div className="mb-6 flex flex-wrap items-center justify-between gap-3 rounded-btn border border-lime-flash/30 bg-lime-flash/10 p-3.5 text-xs text-ink-100 animate-fade-up">
@@ -273,9 +274,7 @@ function YouTubeDisabledBanner() {
       </div>
       <div className="flex items-center gap-2 shrink-0 ms-auto">
         <a
-          href="https://github.com/amiralibg/unstream/releases"
-          target="_blank"
-          rel="noreferrer"
+          href="/download"
           className="rounded-ctl bg-lime-flash px-3 py-1 text-xs font-bold text-ink-950 transition hover:bg-lime-flash/90 active:scale-95"
         >
           {m.banner.getApp}
@@ -508,6 +507,25 @@ function Shell() {
       }
     }
     const onKey = (e: KeyboardEvent) => {
+      if (desktopMode && (e.metaKey || e.altKey) && !e.shiftKey && !e.ctrlKey) {
+        if (e.key === '1') {
+          e.preventDefault()
+          setDesktopTab('search')
+          return
+        } else if (e.key === '2') {
+          e.preventDefault()
+          setDesktopTab('downloads')
+          return
+        } else if (e.key === '3') {
+          e.preventDefault()
+          setDesktopTab('library')
+          return
+        } else if (e.key === '4') {
+          e.preventDefault()
+          setDesktopTab('settings')
+          return
+        }
+      }
       if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
         e.preventDefault()
         // Desktop gets the command palette — typing there searches directly,
@@ -586,13 +604,17 @@ function Shell() {
     return (
       <div className="flex h-screen w-screen flex-col overflow-hidden bg-[#0a0c09] text-ink-100 select-none">
         <DesktopIntegrations onUrl={handleDesktopUrl} />
-        <DesktopTitleBar />
+        <DesktopTitleBar onOpenPalette={() => setPaletteOpen(true)} />
         <OfflineBanner />
 
         <PlayerProvider>
           <div className="flex flex-1 min-h-0 overflow-hidden">
             {/* Native Desktop Sidebar */}
-            <DesktopSidebar activeTab={desktopTab} onSelectTab={setDesktopTab} />
+            <DesktopSidebar
+              activeTab={desktopTab}
+              onSelectTab={setDesktopTab}
+              onOpenKaraoke={() => setKaraokeOpen(true)}
+            />
 
             <div className="flex-1 min-h-0 overflow-hidden">
               <Suspense fallback={<div className="h-full bg-[#10130f]" />}>
@@ -660,28 +682,9 @@ function Shell() {
                           )}
                         </section>
                       ) : (
-                        <section
-                          className={clsx(
-                            'transition-[padding] duration-300 ease-out-expo',
-                            landing ? 'pt-[8vh] pb-8' : 'pt-1 pb-4',
-                          )}
-                        >
-                          <Collapsible open={landing}>
-                            <div className="flex flex-col items-center text-center animate-fade-up mb-2">
-                              <span className="grid size-12 place-items-center rounded-2xl bg-lime-flash text-lime-ink shadow-lg shadow-lime-flash/15">
-                                <AudioLines className="size-6" strokeWidth={2.25} />
-                              </span>
-                              <p className="mt-3 text-sm font-medium text-ink-300">
-                                {m.hero.appEmpty}
-                              </p>
-                            </div>
-                          </Collapsible>
-
+                        <section className="pt-2 sm:pt-4 pb-6">
                           <UrlForm
-                            className={clsx(
-                              'animate-fade-up transition-[margin] duration-300 ease-out-expo shadow-[0_14px_45px_rgba(0,0,0,0.2)] [animation-delay:120ms]',
-                              landing && 'mt-5',
-                            )}
+                            className="animate-fade-up shadow-[0_14px_45px_rgba(0,0,0,0.2)]"
                             loading={busy}
                             onSubmit={handleSubmit}
                             onCancel={cancelPending}
@@ -690,12 +693,32 @@ function Shell() {
                           />
 
                           <Collapsible open={landing}>
-                            <div className="mt-4 flex justify-center">
-                              <RecentSearches
-                                items={recent}
-                                onPick={handleSubmit}
-                                onClear={() => setRecent(clearRecentSearches())}
-                              />
+                            <div className="mt-5 space-y-4">
+                              <div className="flex flex-wrap items-center justify-center gap-2">
+                                {[
+                                  'Spotify',
+                                  'YouTube Music',
+                                  'SoundCloud',
+                                  'Deezer',
+                                  'Apple Music',
+                                ].map((service) => (
+                                  <span
+                                    key={service}
+                                    className="inline-flex items-center gap-1.5 rounded-full border border-white/[0.07] bg-white/[0.025] px-2.5 py-1 text-micro font-medium text-ink-400"
+                                  >
+                                    <span className="size-1.5 rounded-full bg-lime-flash/70" />
+                                    {service}
+                                  </span>
+                                ))}
+                              </div>
+
+                              <div className="flex justify-center">
+                                <RecentSearches
+                                  items={recent}
+                                  onPick={handleSubmit}
+                                  onClear={() => setRecent(clearRecentSearches())}
+                                />
+                              </div>
                             </div>
                           </Collapsible>
 
@@ -926,6 +949,8 @@ function Shell() {
                 )}
               </section>
             )}
+
+            {landing && !isLocal() && <DownloadPromo />}
 
             {busy && <CollectionSkeleton />}
             {!busy && view && (

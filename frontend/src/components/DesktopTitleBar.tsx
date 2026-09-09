@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { getCurrentWindow } from '@tauri-apps/api/window'
+import { Search } from 'lucide-react'
 import {
   isDesktop,
   isMacOS,
@@ -11,13 +12,13 @@ import {
 import { useMessages } from '../lib/i18n'
 
 interface DesktopTitleBarProps {
-  title?: string
+  onOpenPalette?: () => void
 }
 
 /** Clean, minimal native macOS / Windows / Linux draggable titlebar.
  *  Uses explicit LTR direction so macOS traffic lights on the physical left
  *  are never clipped by RTL document direction flips. */
-export function DesktopTitleBar({ title }: DesktopTitleBarProps) {
+export function DesktopTitleBar({ onOpenPalette }: DesktopTitleBarProps) {
   const m = useMessages()
   const [isMaximized, setIsMaximized] = useState(false)
 
@@ -77,79 +78,107 @@ export function DesktopTitleBar({ title }: DesktopTitleBarProps) {
       dir="ltr"
       data-tauri-drag-region
       onMouseDown={handleMouseDown}
-      className="custom-titlebar sticky top-0 z-40 flex h-8.5 w-full shrink-0 select-none items-center justify-between border-b border-ink-800/30 bg-[#0c0e0b]/90 px-3 text-xs text-ink-300 backdrop-blur-xl"
+      className="custom-titlebar sticky top-0 z-40 flex h-10 w-full shrink-0 select-none items-center justify-between border-b border-white/[0.06] bg-ink-950/90 px-3 text-xs text-ink-300 backdrop-blur-xl"
     >
-      {/* Physical Left Section */}
+      {/* Physical Left Spacer: Offset for macOS traffic lights */}
       <div
         data-tauri-drag-region
-        className="flex items-center gap-2 shrink-0"
-        style={{ paddingLeft: isMac ? '76px' : '6px' }}
+        className="shrink-0 h-full flex items-center"
+        style={{ width: isMac ? '78px' : '12px' }}
+      />
+
+      {/* Center Search / Command trigger pill */}
+      <div
+        data-tauri-drag-region
+        className="flex flex-1 items-center justify-center px-4 h-full cursor-default"
       >
-        <span
-          data-tauri-drag-region
-          className="font-display text-[11px] font-semibold tracking-wider text-ink-400 opacity-60 select-none"
-        >
-          {title || m.app.name}
-        </span>
+        {onOpenPalette && (
+          <button
+            type="button"
+            data-no-drag
+            onClick={onOpenPalette}
+            className="group flex h-6.5 w-full max-w-sm items-center justify-between gap-2 rounded-full border border-white/[0.07] bg-white/[0.035] px-2.5 text-[11px] text-ink-400 shadow-sm transition hover:border-lime-flash/40 hover:bg-white/[0.06] hover:text-ink-200 active:scale-[0.99]"
+            title={m.desktopNav.commandPaletteHint}
+          >
+            <span className="flex items-center gap-1.5 min-w-0 truncate">
+              <Search className="size-3 text-ink-500 transition group-hover:text-lime-flash shrink-0" />
+              <span className="truncate" dir="auto">
+                {m.desktopNav.commandPaletteHint}
+              </span>
+            </span>
+            <kbd className="shrink-0 rounded border border-white/[0.08] bg-black/30 px-1 py-0.2 font-mono text-[9px] font-semibold text-ink-400">
+              {isMac ? '⌘K' : 'Ctrl+K'}
+            </kbd>
+          </button>
+        )}
       </div>
 
-      {/* Draggable Empty Space */}
-      <div data-tauri-drag-region className="flex-1 h-full cursor-default" />
-
-      {/* Physical Right Section */}
-      <div className="flex items-center gap-2 shrink-0" data-no-drag>
-        {/* Non-Mac Window Buttons */}
+      {/* Physical Right Section / Spacer (matching width on macOS to keep center search centered) */}
+      <div
+        className="flex items-center justify-end gap-2 shrink-0 h-full"
+        style={{ width: isMac ? '78px' : 'auto' }}
+        data-tauri-drag-region
+      >
+        {/* Non-Mac Native Window Controls */}
         {!isMac && (
-          <div className="ms-1 flex items-center gap-0.5" data-no-drag>
+          <div className="flex items-center gap-0.5" data-no-drag>
             <button
               type="button"
               onClick={() => handleWindowAction('minimize')}
-              className="grid size-7 place-items-center rounded-ctl text-ink-400 hover:bg-ink-800 hover:text-ink-100"
+              className="grid size-7 place-items-center rounded-ctl text-ink-400 hover:bg-white/[0.08] hover:text-ink-100 transition"
               title={m.desktopNav.window.minimize}
-              aria-label={m.desktopNav.window.minimize}
             >
-              <svg
-                className="size-3"
-                viewBox="0 0 12 12"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth={1.5}
-              >
-                <path d="M2 6h8" />
+              <svg width="10" height="1" viewBox="0 0 10 1" fill="currentColor">
+                <rect width="10" height="1" rx="0.5" />
               </svg>
             </button>
             <button
               type="button"
               onClick={() => handleWindowAction('maximize')}
-              className="grid size-7 place-items-center rounded-ctl text-ink-400 hover:bg-ink-800 hover:text-ink-100"
+              className="grid size-7 place-items-center rounded-ctl text-ink-400 hover:bg-white/[0.08] hover:text-ink-100 transition"
               title={isMaximized ? m.desktopNav.window.restore : m.desktopNav.window.maximize}
-              aria-label={isMaximized ? m.desktopNav.window.restore : m.desktopNav.window.maximize}
             >
-              <svg
-                className="size-3"
-                viewBox="0 0 12 12"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth={1.5}
-              >
-                {isMaximized ? <path d="M3.5 4.5h4v4h-4zM4.5 3.5h4v4" /> : <path d="M3 3h6v6H3z" />}
-              </svg>
+              {isMaximized ? (
+                <svg
+                  width="10"
+                  height="10"
+                  viewBox="0 0 10 10"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="1.2"
+                >
+                  <rect x="2.5" y="0.5" width="7" height="7" rx="1" />
+                  <path d="M0.5 3.5V9.5H6.5" />
+                </svg>
+              ) : (
+                <svg
+                  width="9"
+                  height="9"
+                  viewBox="0 0 9 9"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="1.2"
+                >
+                  <rect x="0.6" y="0.6" width="7.8" height="7.8" rx="1" />
+                </svg>
+              )}
             </button>
             <button
               type="button"
               onClick={() => handleWindowAction('close')}
-              className="grid size-7 place-items-center rounded-ctl text-ink-400 hover:bg-danger/80 hover:text-white"
+              className="grid size-7 place-items-center rounded-ctl text-ink-400 hover:bg-danger/80 hover:text-white transition"
               title={m.desktopNav.window.close}
-              aria-label={m.desktopNav.window.close}
             >
               <svg
-                className="size-3"
-                viewBox="0 0 12 12"
+                width="10"
+                height="10"
+                viewBox="0 0 10 10"
                 fill="none"
                 stroke="currentColor"
-                strokeWidth={1.5}
+                strokeWidth="1.2"
               >
-                <path d="M3 3l6 6M9 3L3 9" />
+                <line x1="1" y1="1" x2="9" y2="9" />
+                <line x1="9" y1="1" x2="1" y2="9" />
               </svg>
             </button>
           </div>

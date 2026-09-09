@@ -55,12 +55,88 @@ const en = {
     installUpdate: 'Install & relaunch',
     installing: 'Installing…',
     updateFailed: 'Update failed — try again later',
+    restartApp: 'Restart app',
+    updateReady: 'Update installed! Restart the app to apply.',
   },
 
   banner: {
     youtubeDisabled:
       'YouTube downloads are disabled on this instance. Use the Unstream desktop app for unlimited local downloads.',
     getApp: 'Get Desktop App',
+  },
+
+  /** The dedicated `/download` page. Version and file links resolve at run
+   *  time from the latest GitHub release, so publishing a new release updates
+   *  the page with no code change. */
+  download: {
+    eyebrow: 'Desktop app',
+    title: 'Download the app',
+    blurb:
+      'Unlimited local downloads at the quality you pick, with lyrics saved into the file. It runs entirely on your machine — no account, no server in between.',
+    promoBlurb:
+      'Unlimited local downloads with lyrics in the file. It runs entirely on your machine.',
+    version: (v: string) => `Version ${v}`,
+    latest: 'Latest',
+    loading: 'Finding the latest version…',
+    failed: "Couldn't reach GitHub for the latest version — the full list is still there.",
+    retry: 'Try again',
+    viewAll: 'All downloads on GitHub',
+    backHome: 'Back to Unstream',
+    /** Accessible name for a file button; the visible label stays the bare
+     *  filename, which is a technical token and never translated. */
+    downloadFor: (detail: string) => `Download ${detail}`,
+    otherPlatforms: 'Other platforms',
+    mac: 'macOS',
+    windows: 'Windows',
+    linux: 'Linux',
+    appleSilicon: 'Apple Silicon',
+    intel: 'Intel',
+    bit64: '64-bit',
+    arm64: 'ARM',
+    setupInstaller: 'Installer',
+    portableImage: 'Portable',
+    package: 'Package',
+    macStepsTitle: 'Opening it on a Mac',
+    /** Unsigned-build help. The commands are code, not copy — they stay Latin
+     *  in every locale; only the explanation is translated. */
+    macStepInstall: 'Install the .dmg, then clear the quarantine flag:',
+    macStepResign:
+      'If it still says the app is damaged, re-sign it locally (this is what fixes it when clearing alone does not):',
+    macStepOpen:
+      'Then open it with right-click → Open once, or allow it in System Settings → Privacy & Security.',
+    heroTitle: 'All your music. Truly offline.',
+    heroSubtitle:
+      'High-fidelity downloads, synchronized lyrics baked into your files, and a dedicated offline player. Runs 100% on your machine with zero accounts or subscriptions.',
+    downloadForPlatform: (p: string) => `Download for ${p}`,
+    otherOptionsFor: (p: string) => `Other options for ${p}`,
+    allPlatformsTitle: 'All Platforms & Packages',
+    allPlatformsSubtitle: 'Native binaries built and optimized for your processor architecture.',
+    featuresTitle: 'Engineered for pure listening',
+    featuresSubtitle: 'Everything you love about Unstream, natively optimized for your desktop.',
+    featureLocalTitle: '100% Local & Private',
+    featureLocalDesc:
+      'Runs completely on your machine. No accounts, no sign-ups, and no intermediate servers touching your audio.',
+    featureAudioTitle: 'Lossless & 320 kbps',
+    featureAudioDesc:
+      'Save crystal-clear MP3s or original lossless audio, tagged with verified cover artwork and full ID3 metadata.',
+    featureLyricsTitle: 'Embedded Synced Lyrics',
+    featureLyricsDesc:
+      'Time-synced lyrics embedded directly into your files, ready for any offline media player or karaoke.',
+    featurePlayerTitle: 'Built-in Player & Library',
+    featurePlayerDesc:
+      'Browse your offline music library, play songs with real-time waveform visualizers, and sing along in karaoke view.',
+    macStepsSubtitle:
+      'Because Unstream is community-built and unsigned, macOS Gatekeeper may show a warning. Follow these two quick commands:',
+    macStepsTab: 'macOS Gatekeeper Guide',
+    showMacGuide: 'Show macOS Gatekeeper guide',
+    hideMacGuide: 'Hide guide',
+    selectPlatform: 'Select platform',
+    previewNowPlaying: 'Now Playing',
+    previewLyricsPreview: 'Live Synced Lyrics',
+    copy: 'Copy',
+    copied: 'Copied',
+    yourPlatform: 'Your OS',
+    runningLocally: 'You are currently running Unstream locally on this machine.',
   },
 
   /** The document's own metadata — `<title>`, the description, Open Graph and
@@ -105,12 +181,10 @@ const en = {
     completed: 'Completed',
     musicDownloader: 'Music downloader',
     navigationLabel: 'Desktop navigation',
-    libraryEyebrow: 'Library',
     noActiveDownloads: 'No active downloads',
     noCompletedDownloads: 'No completed downloads yet',
     emptyDownloadsHint:
       'Search for a track, album, or artist to start building your offline music library.',
-    desktopAppEyebrow: 'Desktop app',
     settingsDescription: 'Fine-tune audio, file organization, language, and app updates.',
     audioDefaults: 'Audio defaults',
     audioDefaultsHint: 'These options apply to every new download.',
@@ -121,6 +195,14 @@ const en = {
     newVersion: 'New version available:',
     builtBy: 'Built by',
     and: 'and',
+    totalDownloads: 'Total',
+    clearCompleted: 'Clear completed',
+    revealInFolder: 'Reveal in folder',
+    commandPaletteHint: 'Search or paste link…',
+    supportedSources: 'Supported services',
+    offlineLibrary: 'Offline Music Library',
+    keyboardShortcut: 'Shortcut',
+    quickActions: 'Quick actions',
     window: {
       minimize: 'Minimize',
       maximize: 'Maximize',

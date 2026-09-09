@@ -52,9 +52,6 @@ export function DesktopDownloadsView({ onGoToSearch }: { onGoToSearch: () => voi
       <header className="shrink-0 border-b border-white/[0.055] bg-[#10130f]/95 px-7 pb-4 pt-5 backdrop-blur-xl">
         <div className="mx-auto flex max-w-[68rem] items-end justify-between gap-6">
           <div className="min-w-0">
-            <p className="mb-1 text-[10px] font-semibold uppercase tracking-[0.16em] text-lime-flash/75">
-              {m.desktopNav.libraryEyebrow}
-            </p>
             <h1 className="font-display text-[22px] font-bold tracking-[-0.025em] text-ink-100">
               {m.desktopNav.downloads}
             </h1>
@@ -260,7 +257,7 @@ function DesktopJobCard({
       </div>
 
       {!finished && (
-        <div className="h-0.5 w-full bg-black/20">
+        <div className="h-0.5 w-full bg-black/20" dir="ltr">
           <div
             className="h-full bg-lime-flash shadow-[0_0_8px_rgba(200,242,79,0.35)] transition-[width] duration-300"
             style={{ width: `${fraction * 100}%` }}

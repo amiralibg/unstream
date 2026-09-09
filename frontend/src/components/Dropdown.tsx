@@ -138,7 +138,7 @@ export function Dropdown({
   }
 
   return (
-    <div ref={rootRef} className={clsx('relative', className)}>
+    <div ref={rootRef} className={clsx('relative', open && 'z-50', className)}>
       <button
         ref={buttonRef}
         type="button"

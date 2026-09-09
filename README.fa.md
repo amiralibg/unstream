@@ -26,14 +26,16 @@
 
 ## دریافت برنامه دسکتاپ (پیشنهادی)
 
-ساده‌ترین روش استفاده از آنستریم بدون نیاز به داکر. برنامه کاملاً محلی روی دستگاه شما اجرا می‌شود و فایل‌های موسیقی را مستقیماً در پوشه‌ی موزیک شما ذخیره می‌کند.
+ساده‌ترین روش استفاده از آنستریم بدون داکر — برنامه کاملاً محلی روی دستگاه شما اجرا می‌شود و فایل‌های موسیقی را مستقیم در پوشه‌ی موزیک شما ذخیره می‌کند. روی هر نمونه‌ی در حال اجرا، صفحه‌ی **دانلود برنامه** همیشه آخرین نسخه را با فایل مناسب سیستم شما نشان می‌دهد.
 
-| سیستم‌عامل / پلتفرم | لینک دانلود | راهنما |
+| سیستم‌عامل | فایل | نکته‌ی اولین اجرا |
 | --- | --- | --- |
-| **مک (Apple Silicon)** | [دانلود فایل .dmg](https://github.com/amiralibg/unstream/releases/latest) | نسخه v1 بدون امضای اپل: کلیک راست روی برنامه و Open، یا دستور `xattr -d com.apple.quarantine /Applications/Unstream.app` |
-| **مک (Intel)** | [دانلود فایل .dmg](https://github.com/amiralibg/unstream/releases/latest) | مشابه بالا |
-| **ویندوز** | [دانلود فایل .exe](https://github.com/amiralibg/unstream/releases/latest) | در صورت اخطار SmartScreen: روی More info و سپس Run anyway بزنید |
-| **لینوکس** | [دانلود .AppImage / .deb](https://github.com/amiralibg/unstream/releases/latest) | با `chmod +x` اجرا کنید یا با `dpkg -i` نصب نمایید |
+| **مک (Apple Silicon)** | `.dmg` | بیلد بدون امضاست: بعد از نصب `sudo xattr -cr /Applications/Unstream.app` را اجرا کنید. اگر باز هم گفت برنامه خراب است، همان‌جا امضایش کنید: `sudo codesign --force --deep --sign - /Applications/Unstream.app`. بعد یک بار با راست‌کلیک ← Open بازش کنید. |
+| **مک (Intel)** | `.dmg` | مشابه بالا |
+| **ویندوز (۶۴ بیتی / آرم)** | نصاب `.exe` (یا `.msi`) | اگر SmartScreen آمد: More info و بعد Run anyway |
+| **لینوکس (۶۴ بیتی / آرم)** | `.AppImage` یا `.deb` | فایل AppImage را با `chmod +x` اجرایی و اجرا کنید، یا پکیج را با `sudo dpkg -i` نصب کنید |
+
+همه‌ی فایل‌ها: <https://github.com/amiralibg/unstream/releases/latest>
 
 ## شروع سریع (داکر)
 

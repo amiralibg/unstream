@@ -23,7 +23,7 @@ RUN set -eux; \
         arm64) DENO_ARCH=aarch64-unknown-linux-gnu ;; \
         *) echo "no deno build for ${TARGETARCH}" >&2; exit 1 ;; \
     esac; \
-    curl -fsSL -o /tmp/deno.zip \
+    curl -fsSL --retry 5 --retry-all-errors --retry-delay 3 -o /tmp/deno.zip \
         "https://github.com/denoland/deno/releases/download/${DENO_VERSION}/deno-${DENO_ARCH}.zip"; \
     unzip -q /tmp/deno.zip -d /usr/local/bin; \
     chmod 755 /usr/local/bin/deno; \

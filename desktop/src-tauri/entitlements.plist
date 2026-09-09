@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <!-- Outgoing connections: update feed, catalog APIs, lyrics. -->
+  <key>com.apple.security.network.client</key>
+  <true/>
+  <!-- The Python sidecar serves the UI on 127.0.0.1; without this the
+       hardened runtime kills the bind and the app shows a blank window. -->
+  <key>com.apple.security.network.server</key>
+  <true/>
+  <!-- User-chosen downloads folder + Music/Unstream default. -->
+  <key>com.apple.security.files.user-selected.read-write</key>
+  <true/>
+  <key>com.apple.security.files.downloads.read-write</key>
+  <true/>
+  <!-- PyInstaller bootloaders and the bundled ffmpeg/qjs are ad-hoc signed.
+       Library validation would reject those dylibs (the @executable_path/libs
+       tree dylibbundler builds) and the OS reports the app as "damaged" even
+       after `xattr -cr`. Disabling validation is what makes an unsigned
+       distribution openable at all. -->
+  <key>com.apple.security.cs.disable-library-validation</key>
+  <true/>
+  <!-- Frozen Python allocates executable memory at runtime. -->
+  <key>com.apple.security.cs.allow-unsigned-executable-memory</key>
+  <true/>
+  <key>com.apple.security.cs.allow-jit</key>
+  <true/>
+</dict>
+</plist>

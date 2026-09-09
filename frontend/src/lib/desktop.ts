@@ -17,6 +17,37 @@ export function isDesktop(): boolean {
   )
 }
 
+/** Whether the app is being run locally on the user's machine (desktop Tauri shell,
+ *  localhost, loopback IP, or local LAN / private IP). Used to omit promotional download
+ *  prompts that only make sense on hosted/public web instances. */
+export function isLocal(): boolean {
+  if (typeof window === 'undefined') return false
+  if (isDesktop()) return true
+  const host = window.location.hostname
+  if (!host) return false
+  if (
+    host === 'localhost' ||
+    host === '127.0.0.1' ||
+    host === '0.0.0.0' ||
+    host === '::1' ||
+    host === '[::1]' ||
+    host.endsWith('.localhost') ||
+    host.endsWith('.local')
+  ) {
+    return true
+  }
+  // Private LAN IP ranges (127.x.x.x, 10.x.x.x, 192.168.x.x, 172.16-31.x.x)
+  if (
+    /^127\./.test(host) ||
+    /^10\./.test(host) ||
+    /^192\.168\./.test(host) ||
+    /^172\.(1[6-9]|2[0-9]|3[0-1])\./.test(host)
+  ) {
+    return true
+  }
+  return false
+}
+
 /** macOS, where the window's traffic lights are drawn by the OS over the
  *  webview's physical top-left. Anything a full-screen view puts in that
  *  corner lands underneath them, so overlays reserve the space — see the
@@ -257,17 +288,36 @@ export async function notifyDownloadComplete(title: string, body: string): Promi
   }
 }
 
-export async function installUpdateAndRelaunch(): Promise<void> {
-  if (!isDesktop()) return
+export async function downloadAndInstallUpdate(): Promise<boolean> {
+  if (!isDesktop()) return false
   try {
     const update = await check()
     if (update) {
       await update.downloadAndInstall()
-      const { relaunch } = await import('@tauri-apps/plugin-process')
-      await relaunch()
+      return true
     }
+    return false
   } catch (err) {
-    console.error('Update install failed:', err)
+    console.error('Update download and install failed:', err)
     throw err
   }
+}
+
+export async function relaunchApp(): Promise<void> {
+  if (!isDesktop()) {
+    window.location.reload()
+    return
+  }
+  try {
+    const { relaunch } = await import('@tauri-apps/plugin-process')
+    await relaunch()
+  } catch (err) {
+    console.error('Relaunch failed, falling back to reload:', err)
+    window.location.reload()
+  }
+}
+
+export async function installUpdateAndRelaunch(): Promise<void> {
+  await downloadAndInstallUpdate()
+  await relaunchApp()
 }
