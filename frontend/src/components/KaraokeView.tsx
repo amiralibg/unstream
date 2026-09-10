@@ -17,24 +17,47 @@ import { apiError, getLibraryLyrics, getLyrics, type Lyrics, type Track } from '
 import { isMacOS } from '../lib/desktop'
 import { faNumerals, useMessages } from '../lib/i18n'
 import type { Messages } from '../lib/locales/en'
-import { usePlayer, usePlayerTime, type QueueItem } from '../lib/player'
+import { useAudioClock, usePlayer, usePlayerTime, type QueueItem } from '../lib/player'
 
 export interface LyricLine {
   t: number
   text: string
 }
 
-/** Parse time-synced LRC. Every [mm:ss.xx] tag on a line gets its own entry
- *  so repeated choruses written once still light up each time they play. */
+// One LRC timestamp. The hour group is optional — LRCLIB writes [mm:ss.xx],
+// but a sidecar the user already had can carry [hh:mm:ss.xx].
+//
+// The fraction must be dot-separated. Some old writers use a colon there,
+// which would make [00:12:34] mean either 12m34s or 12.34s with no way to
+// tell them apart; reading three colon-separated groups as hours:minutes:
+// seconds always is the only rule that can't be wrong twice.
+const LRC_TAG_RE = /\[(?:(\d{1,2}):)?(\d{1,3}):(\d{1,2})(?:\.(\d{1,3}))?\]/g
+
+// [offset:+350] shifts every timing, in milliseconds. The sign is the part
+// worth knowing: the spec reads it as "the lyrics appear this much earlier",
+// so a positive offset *subtracts* from each timestamp.
+const LRC_OFFSET_RE = /^\s*\[offset:\s*([+-]?\d+)\s*\]/im
+
+/** Parse time-synced LRC. Every timestamp on a line gets its own entry, so a
+ *  chorus written once still lights up each time it plays. */
 export function parseLRC(synced: string): LyricLine[] {
+  const offsetTag = LRC_OFFSET_RE.exec(synced)
+  const offset = offsetTag ? Number(offsetTag[1]) / 1000 : 0
   const lines: LyricLine[] = []
   for (const raw of synced.split('\n')) {
-    const tags = [...raw.matchAll(/\[(\d+):(\d+(?:\.\d+)?)\]/g)]
+    const tags = [...raw.matchAll(LRC_TAG_RE)]
     if (tags.length === 0) continue
-    const text = raw.replace(/\[(\d+):(\d+(?:\.\d+)?)\]/g, '').trim()
+    const text = raw.replace(LRC_TAG_RE, '').trim()
     if (!text) continue
-    for (const tag of tags) {
-      lines.push({ t: Number(tag[1]) * 60 + Number(tag[2]), text })
+    for (const [, hh, mm, ss, frac] of tags) {
+      // Two fraction digits are centiseconds, three are milliseconds —
+      // padEnd makes ".5" and ".50" both mean half a second.
+      const seconds =
+        (hh ? Number(hh) * 3600 : 0) +
+        Number(mm) * 60 +
+        Number(ss) +
+        (frac ? Number(frac.padEnd(3, '0')) / 1000 : 0)
+      lines.push({ t: Math.max(0, seconds - offset), text })
     }
   }
   return lines.sort((a, b) => a.t - b.t)
@@ -49,7 +72,9 @@ export function parseLRC(synced: string): LyricLine[] {
  *  Auto-scroll steps aside for a few seconds after a manual scroll —
  *  fighting someone reading ahead is the classic way these get annoying. */
 function LyricRoll({ lines, onSeek }: { lines: LyricLine[]; onSeek: (t: number) => void }) {
-  const { time } = usePlayerTime()
+  // Per frame, not per `timeupdate`: a quarter-second late is late enough to
+  // see against the beat. Only this component pays for it.
+  const time = useAudioClock()
   const listRef = useRef<HTMLDivElement | null>(null)
   const manualUntil = useRef(0)
 
@@ -89,7 +114,13 @@ function LyricRoll({ lines, onSeek }: { lines: LyricLine[]; onSeek: (t: number) 
               dir="auto"
               // Tapping a line jumps the song there — the fastest way back
               // to the verse you wanted to hear again.
-              onClick={() => onSeek(line.t)}
+              onClick={() => {
+                // Jumping on purpose ends the reading-ahead grace period —
+                // otherwise the roll sits still for the next few seconds
+                // exactly when it has somewhere new to be.
+                manualUntil.current = 0
+                onSeek(line.t)
+              }}
               className={clsx(
                 'w-full rounded-2xl px-4 py-2 text-center font-display leading-relaxed transition-all duration-300 hover:bg-white/[0.04]',
                 faNumerals(line.text),
@@ -117,7 +148,7 @@ function LyricRoll({ lines, onSeek }: { lines: LyricLine[]; onSeek: (t: number) 
  */
 export function KaraokeView({ onClose }: { onClose: () => void }) {
   const m = useMessages()
-  const { current, playing, toggle, next, prev, seekTo } = usePlayer()
+  const { current, playing, toggle, next, prev, seekTo, seekBy } = usePlayer()
   const retrying = useRef(false)
 
   const lyricTrack: Track | null = useMemo(() => {
@@ -167,13 +198,39 @@ export function KaraokeView({ onClose }: { onClose: () => void }) {
     return refetch()
   }, [refetch])
 
+  // Full-screen with a transport at the bottom and no keys is the shape of a
+  // view you have to reach for the mouse inside. Arrows scrub, space plays.
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onClose()
+      const target = e.target as HTMLElement | null
+      // A range input owns its own arrow keys, and so does anything being
+      // typed into — never steal from those.
+      if (
+        target?.isContentEditable ||
+        ['INPUT', 'TEXTAREA', 'SELECT'].includes(target?.tagName ?? '')
+      )
+        return
+      switch (e.key) {
+        case 'Escape':
+          onClose()
+          return
+        case ' ':
+          e.preventDefault() // otherwise the page scrolls under the words
+          toggle()
+          return
+        case 'ArrowLeft':
+          e.preventDefault()
+          seekBy(-5)
+          return
+        case 'ArrowRight':
+          e.preventDefault()
+          seekBy(5)
+          return
+      }
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [onClose])
+  }, [onClose, toggle, seekBy])
 
   const lines = useMemo(() => (data?.synced ? parseLRC(data.synced) : []), [data])
 

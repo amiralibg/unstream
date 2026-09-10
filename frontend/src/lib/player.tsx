@@ -57,6 +57,10 @@ interface PlayerTimeValue {
   duration: number
 }
 
+/** The element itself, for the one caller that needs the playhead sooner
+ *  than `timeupdate` offers it. See `useAudioClock`. */
+const PlayerAudioContext = createContext<{ current: HTMLAudioElement | null } | null>(null)
+
 /** Volume, split off for the same reason as position: dragging the slider
  *  fires continuously, and the library list has no stake in the result. */
 interface PlayerVolumeValue {
@@ -470,9 +474,11 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
 
   return (
     <PlayerContext.Provider value={value}>
-      <PlayerVolumeContext.Provider value={volumeValue}>
-        <PlayerTimeContext.Provider value={timeValue}>{children}</PlayerTimeContext.Provider>
-      </PlayerVolumeContext.Provider>
+      <PlayerAudioContext.Provider value={audioRef}>
+        <PlayerVolumeContext.Provider value={volumeValue}>
+          <PlayerTimeContext.Provider value={timeValue}>{children}</PlayerTimeContext.Provider>
+        </PlayerVolumeContext.Provider>
+      </PlayerAudioContext.Provider>
     </PlayerContext.Provider>
   )
 }
@@ -488,6 +494,42 @@ export function usePlayer(): PlayerContextValue {
  *  stays still. */
 export function usePlayerTime(): PlayerTimeValue {
   return useContext(PlayerTimeContext)
+}
+
+/** The playhead, read per animation frame instead of per `timeupdate`.
+ *
+ *  `timeupdate` fires roughly four times a second, so a lyric keyed off it
+ *  lights up to 250ms after the line is sung — enough to read as out of time
+ *  on anything with a beat. This polls the element directly while it plays
+ *  and hands back a number a frame old at worst.
+ *
+ *  It costs a render per frame, which is why it is a separate hook and not
+ *  the default: only the lyric roll asks for it, and only while karaoke is
+ *  open. Everything else stays on `usePlayerTime`.
+ *
+ *  Falls back to the context value when there is no element yet, so the
+ *  first frame after mount is the real position rather than zero.
+ */
+export function useAudioClock(): number {
+  const ref = useContext(PlayerAudioContext)
+  const { time: coarse } = usePlayerTime()
+  const [time, setTime] = useState(coarse)
+
+  useEffect(() => {
+    if (!ref) return
+    let frame = 0
+    const tick = () => {
+      const el = ref.current
+      // Same value while paused, and React bails out of an identical state
+      // write — so a paused song costs the loop and nothing else.
+      if (el) setTime(el.currentTime)
+      frame = requestAnimationFrame(tick)
+    }
+    frame = requestAnimationFrame(tick)
+    return () => cancelAnimationFrame(frame)
+  }, [ref])
+
+  return ref?.current ? time : coarse
 }
 
 /** Subscribe to volume alone, so the slider is the only thing a drag

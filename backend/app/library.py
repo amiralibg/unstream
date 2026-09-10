@@ -19,7 +19,7 @@ import re
 from dataclasses import asdict, dataclass
 from pathlib import Path
 
-from . import jobs
+from . import jobs, lyrics
 
 _EXTS = {".mp3", ".m4a", ".opus", ".ogg", ".wav", ".flac", ".mp4"}
 
@@ -406,4 +406,10 @@ def lyrics_for(file_id: str, root: Path | None = None) -> dict | None:
                 plain = text
     if not synced and not plain:
         return None
+    if synced and not plain:
+        # A synced-only sidecar is the common case — LRCLIB hands back LRC and
+        # `_write_lrc` stores it verbatim. Answering with an empty `plain`
+        # would make this endpoint's own contract read as "timings but no
+        # words" to any caller that only knows how to render the plain text.
+        plain = lyrics.strip_lrc(synced)
     return {"plain": plain, "synced": synced, "source": "file"}

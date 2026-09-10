@@ -189,3 +189,26 @@ def test_lyrics_endpoint_prefers_the_synced_sidecar(monkeypatch, tmp_path):
     (root / "album" / "No Tags Here.lrc").unlink()
     library._tag_cache.clear()
     assert client.get(f"/api/library/lyrics/{ids['No Tags Here']}").status_code == 404
+
+
+def test_a_synced_sidecar_still_answers_with_the_words(monkeypatch, tmp_path):
+    """A caller that only renders plain text must not see "timings, no words".
+
+    `_write_lrc` stores what LRCLIB returned, which is timestamps and nothing
+    else, so a track downloaded with lyrics has a synced sidecar and — for
+    the containers that cannot hold a USLT frame — no embedded copy at all.
+    The plain text is derivable from the sidecar, so it gets derived.
+    """
+    root = _tree(tmp_path)
+    monkeypatch.setattr(jobs, "DOWNLOADS_DIR", root)
+    client = TestClient(main.app)
+    ids = {t["title"]: t["id"] for t in client.get("/api/library").json()["tracks"]}
+
+    (root / "album" / "No Tags Here.lrc").write_text(
+        "[ar:Someone]\n[00:01.00] one\n[00:04.50] two\n", encoding="utf-8"
+    )
+    library._tag_cache.clear()
+
+    body = client.get(f"/api/library/lyrics/{ids['No Tags Here']}").json()
+    assert "[00:04.50]" in body["synced"]
+    assert body["plain"] == "one\ntwo"  # timestamps and [ar:] stripped

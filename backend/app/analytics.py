@@ -214,6 +214,7 @@ def error_class(message: str) -> str:
     text = message.lower()
     for needle, bucket in (
         ("sign in to confirm", "youtube bot check"),
+        ("the page needs to be reloaded", "youtube bot check"),
         ("age", "age restricted"),
         ("private", "private or removed"),
         ("unavailable", "private or removed"),

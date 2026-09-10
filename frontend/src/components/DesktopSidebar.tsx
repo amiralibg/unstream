@@ -106,8 +106,8 @@ export function DesktopSidebar({ activeTab, onSelectTab, onOpenKaraoke }: Deskto
             <span className="block truncate font-display text-sm font-bold tracking-tight text-ink-100 group-hover:text-lime-flash transition-colors">
               {m.app.name}
             </span>
-            <span className="rounded bg-lime-flash/15 px-1.5 py-0.2 text-[9px] font-bold text-lime-flash">
-              v{info?.version || '0.1.3'}
+            <span className="rounded bg-lime-flash/15 px-1.5 pb-0.2 pt-1 text-[9px] font-bold text-lime-flash">
+              v{info?.version || __APP_VERSION__}
             </span>
           </span>
           <span className="block truncate text-[10px] font-medium text-ink-500">

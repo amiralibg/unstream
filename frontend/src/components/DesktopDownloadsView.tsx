@@ -13,10 +13,11 @@ import {
   X,
 } from 'lucide-react'
 import clsx from 'clsx'
-import { qualityLabel, type Job, type JobTrack } from '../lib/api'
+import { apiError, qualityLabel, type Job, type JobTrack } from '../lib/api'
 import { isDesktop, revealFile } from '../lib/desktop'
 import { type DownloadEntry, useDownloads } from '../lib/downloads'
 import { faNumerals, useMessages } from '../lib/i18n'
+import { useToast } from '../lib/toast'
 
 function inFlightFraction(job: Job): number {
   return job.tracks.reduce(
@@ -151,6 +152,7 @@ function DesktopJobCard({
   onRetryOne: (trackId: string) => Promise<void>
 }) {
   const m = useMessages()
+  const { push } = useToast()
   const job = entry.job
   const done = job?.done ?? 0
   const failed = job?.failed ?? 0
@@ -170,6 +172,17 @@ function DesktopJobCard({
       path: null,
       ext: null,
     }))
+
+  // Every one of these can be refused — a job swept past its TTL, a backend
+  // that went away mid-click. Saying so is the whole difference between a
+  // button that failed and a button that looks broken.
+  const report = (run: () => Promise<void>) => async () => {
+    try {
+      await run()
+    } catch (err) {
+      push(apiError(err, m), 'error')
+    }
+  }
 
   return (
     <article className="group overflow-hidden rounded-[14px] border border-white/[0.065] bg-white/[0.025] shadow-[0_10px_30px_rgba(0,0,0,0.12)] transition hover:border-white/[0.09] hover:bg-white/[0.033]">
@@ -227,7 +240,7 @@ function DesktopJobCard({
               {failed > 0 && (
                 <button
                   type="button"
-                  onClick={onRetry}
+                  onClick={report(onRetry)}
                   className="flex h-8 items-center gap-1.5 rounded-lg border border-danger/25 bg-danger/[0.08] px-2.5 text-[11px] font-semibold text-danger transition hover:bg-danger/15"
                 >
                   <RefreshCw className="size-3" />
@@ -246,11 +259,17 @@ function DesktopJobCard({
           ) : (
             <button
               type="button"
-              onClick={onCancel}
-              className="flex h-8 items-center gap-1.5 rounded-lg border border-white/[0.07] bg-white/[0.035] px-2.5 text-[11px] font-semibold text-ink-300 transition hover:bg-white/[0.07] hover:text-ink-100"
+              onClick={report(onCancel)}
+              disabled={entry.cancelling}
+              title={entry.cancelling ? m.dock.cancelling : m.dock.cancel}
+              className="flex h-8 items-center gap-1.5 rounded-lg border border-white/[0.07] bg-white/[0.035] px-2.5 text-[11px] font-semibold text-ink-300 transition hover:bg-white/[0.07] hover:text-ink-100 disabled:cursor-default disabled:opacity-55 disabled:hover:bg-white/[0.035]"
             >
-              <X className="size-3" />
-              {m.dock.cancel}
+              {entry.cancelling ? (
+                <LoaderCircle className="size-3 animate-spin" />
+              ) : (
+                <X className="size-3" />
+              )}
+              {entry.cancelling ? m.dock.cancelling : m.dock.cancel}
             </button>
           )}
         </div>
@@ -309,7 +328,7 @@ function DesktopJobCard({
                 ) : state.status === 'error' ? (
                   <button
                     type="button"
-                    onClick={() => onRetryOne(state.id)}
+                    onClick={report(() => onRetryOne(state.id))}
                     className="flex h-6 items-center gap-1 rounded-md px-1.5 font-medium text-danger transition hover:bg-danger/10"
                   >
                     <RefreshCw className="size-3" />

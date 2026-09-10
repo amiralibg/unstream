@@ -23,9 +23,10 @@ pub struct AppState {
     pub pending_link: Arc<Mutex<Option<String>>>,
 }
 
-#[derive(Serialize, Deserialize, Default)]
+#[derive(Serialize, Deserialize, Default, Clone)]
 struct SavedSettings {
     pub downloads_dir: Option<String>,
+    pub cookies_from_browser: Option<String>,
 }
 
 fn get_free_port() -> u16 {
@@ -190,6 +191,10 @@ fn find_bin_dir(app_handle: &AppHandle) -> PathBuf {
         if bundled_bin.exists() {
             return bundled_bin;
         }
+        let ffmpeg_name = if cfg!(windows) { "ffmpeg.exe" } else { "ffmpeg" };
+        if resource_dir.join(ffmpeg_name).exists() {
+            return resource_dir;
+        }
     }
 
     let candidates = [
@@ -258,16 +263,45 @@ fn spawn_backend(
 
     let path_sep = if cfg!(windows) { ";" } else { ":" };
     let current_path = std::env::var("PATH").unwrap_or_default();
-    let new_path = if bin_dir.exists() {
-        format!("{}{}{}", bin_dir.display(), path_sep, current_path)
-    } else {
-        current_path
-    };
+
+    #[cfg(unix)]
+    let extra_system_paths = [
+        "/opt/homebrew/bin",
+        "/opt/homebrew/sbin",
+        "/usr/local/bin",
+        "/usr/bin",
+        "/bin",
+        "/usr/sbin",
+        "/sbin",
+    ];
+
+    let mut path_entries: Vec<String> = Vec::new();
+    if bin_dir.exists() {
+        path_entries.push(bin_dir.display().to_string());
+    }
+    #[cfg(unix)]
+    {
+        for p in extra_system_paths {
+            if std::path::Path::new(p).exists() && !path_entries.iter().any(|existing| existing == p) {
+                path_entries.push(p.to_string());
+            }
+        }
+    }
+    if !current_path.is_empty() {
+        for p in current_path.split(path_sep) {
+            if !p.is_empty() && !path_entries.iter().any(|existing| existing == p) {
+                path_entries.push(p.to_string());
+            }
+        }
+    }
+    let new_path = path_entries.join(path_sep);
 
     println!("[Unstream Desktop] Spawning backend: {}", backend_bin.display());
     println!("[Unstream Desktop] Static dir: {}", static_dir.display());
     println!("[Unstream Desktop] Downloads dir: {}", downloads_dir.display());
-    println!("[Unstream Desktop] Bin PATH prepend: {}", bin_dir.display());
+    println!("[Unstream Desktop] Bin PATH: {}", new_path);
+
+    let saved_settings = load_saved_settings(&app_data_dir);
 
     let mut cmd = std::process::Command::new(&backend_bin);
     cmd.arg("--host")
@@ -322,6 +356,12 @@ fn spawn_backend(
             "YTDLP_CACHE_DIR",
             app_cache_dir.join("ytdlp").to_str().unwrap_or_default(),
         );
+
+    if let Some(ref browser) = saved_settings.cookies_from_browser {
+        if !browser.is_empty() {
+            cmd.env("YTDLP_COOKIES_FROM_BROWSER", browser);
+        }
+    }
 
     #[cfg(windows)]
     {
@@ -379,12 +419,20 @@ fn set_downloads_dir(
     *state.downloads_dir.lock().unwrap() = new_path;
 
     let app_data_dir = state.app_data_dir.lock().unwrap().clone();
-    save_settings(
-        &app_data_dir,
-        &SavedSettings {
-            downloads_dir: Some(path),
-        },
-    )
+    let mut settings = load_saved_settings(&app_data_dir);
+    settings.downloads_dir = Some(path);
+    save_settings(&app_data_dir, &settings)
+}
+
+#[tauri::command]
+fn set_cookies_from_browser(
+    browser: String,
+    state: State<AppState>,
+) -> Result<(), String> {
+    let app_data_dir = state.app_data_dir.lock().unwrap().clone();
+    let mut settings = load_saved_settings(&app_data_dir);
+    settings.cookies_from_browser = if browser.is_empty() { None } else { Some(browser) };
+    save_settings(&app_data_dir, &settings)
 }
 
 #[tauri::command]
@@ -693,6 +741,7 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             get_downloads_dir,
             set_downloads_dir,
+            set_cookies_from_browser,
             get_desktop_info,
             list_installed_browsers,
             start_dragging,

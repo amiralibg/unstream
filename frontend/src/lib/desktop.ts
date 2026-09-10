@@ -85,12 +85,14 @@ export async function setDownloadsDir(path: string): Promise<boolean> {
     console.error('Failed to set downloads dir in Tauri:', err)
   }
   try {
-    await fetch('/api/desktop/config', {
+    // The running backend is the one that decides where the next file lands,
+    // so its answer — not the fact that a request was sent — is the result.
+    const res = await fetch('/api/desktop/config', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ downloads_dir: path }),
     })
-    return true
+    return res.ok
   } catch (err) {
     console.error('Failed to sync downloads dir to backend:', err)
     return false
@@ -113,8 +115,6 @@ export async function getBackendDesktopConfig(): Promise<BackendDesktopConfig | 
   return null
 }
 
-/** Live-switch which browser YouTube cookies are read from ("" clears it).
- *  Takes effect on the next download, no restart. */
 /** Browser ids installed on this machine, in `BROWSER_ALLOWLIST` order.
  *
  *  Empty means either "none found" or "not the desktop app" — the caller
@@ -129,8 +129,21 @@ export async function listInstalledBrowsers(): Promise<string[]> {
   }
 }
 
+/** Live-switch which browser YouTube cookies are read from ("" clears it).
+ *
+ *  Two writes on purpose. The Tauri side persists the choice so the next
+ *  launch spawns the backend already carrying it; the POST applies it to the
+ *  backend running right now, so the next download picks it up with no
+ *  restart. Only the second one decides the return value — a setting that
+ *  saved but did not take effect has not done what the toggle promised.
+ */
 export async function setCookiesFromBrowser(browser: string): Promise<boolean> {
   if (!isDesktop()) return false
+  try {
+    await invoke('set_cookies_from_browser', { browser })
+  } catch (err) {
+    console.error('Failed to set cookies browser in Tauri:', err)
+  }
   try {
     const res = await fetch('/api/desktop/config', {
       method: 'POST',

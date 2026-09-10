@@ -64,7 +64,7 @@ class DownloadError(Exception):
 # gets a turn — only a cookie gets past it. The sentence the user reads comes
 # from ytdlp.bot_check_message(), which names the fix available where they are.
 _BOT_CHECK_RE = re.compile(
-    r"Sign in to confirm you.{0,3}re not a bot|LOGIN_REQUIRED", re.IGNORECASE
+    r"Sign in to confirm you.{0,3}re not a bot|LOGIN_REQUIRED|The page needs to be reloaded", re.IGNORECASE
 )
 
 

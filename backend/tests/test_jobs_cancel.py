@@ -80,7 +80,7 @@ def test_progress_after_a_cancel_cannot_revive_a_track(job, monkeypatch):
         raise downloader.Cancelled()
 
     monkeypatch.setattr(downloader, "download_track", download)
-    jobs._run_track(job, state)
+    jobs._run_track(job, state, state.generation)
 
     assert state.status == "cancelled"
     assert job.finished
@@ -98,7 +98,7 @@ def test_a_track_finishing_after_the_cancel_is_thrown_away(job, monkeypatch, tmp
         return finished
 
     monkeypatch.setattr(downloader, "download_track", download)
-    jobs._run_track(job, job.tracks["t1"])
+    jobs._run_track(job, job.tracks["t1"], job.tracks["t1"].generation)
 
     assert job.tracks["t1"].status == "cancelled"
     assert job.tracks["t1"].file_path is None
@@ -114,7 +114,7 @@ def test_a_queued_track_never_starts_after_a_cancel(job, monkeypatch):
         lambda *a, **k: pytest.fail("started a track the job had cancelled"),
     )
 
-    jobs._run_track(job, job.tracks["t1"])
+    jobs._run_track(job, job.tracks["t1"], job.tracks["t1"].generation)
 
     assert job.tracks["t1"].status == "cancelled"
 
@@ -179,3 +179,92 @@ def test_a_cancelled_download_leaves_no_partial_files(monkeypatch, tmp_path):
 
     assert calls["n"] == 1  # not retried
     assert not partial.exists()
+
+
+def test_retrying_one_track_does_not_revive_the_others(job, monkeypatch, tmp_path):
+    """Retrying clears the job-wide stop flag; the other workers must not see it.
+
+    A cancel lands while several tracks are in flight. One of them is past
+    its last check and about to hand back a finished file — and the flag it
+    would have been judged by has just been cleared underneath it by a retry
+    of a *different* track. Without a per-track mark the file is kept and the
+    row flips to "done", so a job that reported "stopped" hands out one more
+    song than it ever admitted to.
+    """
+    monkeypatch.setattr(jobs, "DOWNLOADS_DIR", tmp_path)
+    monkeypatch.setattr(jobs._executor, "submit", lambda *a, **k: None)
+    job.tracks["t1"].status = "error"  # the one being retried
+    finished = tmp_path / "late.mp3"
+    finished.write_bytes(b"\0" * 16)
+
+    def download(*args, **kwargs):
+        """t2's worker, running through the cancel and the retry that follows."""
+        jobs.cancel(job)
+        jobs.retry_track(job, "t1")  # clears job.stopped underneath this worker
+        return finished
+
+    monkeypatch.setattr(downloader, "download_track", download)
+    jobs._run_track(job, job.tracks["t2"], job.tracks["t2"].generation)
+
+    assert job.stopped.is_set() is False  # the flag really was cleared
+    assert job.tracks["t2"].status == "cancelled"  # and t2 stayed stopped anyway
+    assert job.tracks["t2"].file_path is None
+    assert not finished.exists()
+    assert job.tracks["t1"].status == "queued"  # while the retried one is live
+
+
+def test_a_superseded_worker_cannot_write_over_the_retry(job, monkeypatch):
+    """The abandoned attempt unwinds after the fresh one has already started."""
+    state = job.tracks["t1"]
+
+    def download(*args, **kwargs):
+        # The retry lands while this attempt is still on its way out.
+        with job.lock:
+            state.generation += 1
+            state.status = "downloading"
+        raise downloader.DownloadError("403 Forbidden")
+
+    monkeypatch.setattr(downloader, "download_track", download)
+    jobs._run_track(job, state, state.generation)
+
+    assert state.status == "downloading"  # not stamped "error" by the old attempt
+    assert state.error is None
+
+
+def test_retry_all_leaves_cancelled_tracks_alone(job, monkeypatch):
+    """"Retry the ones that broke" is not "undo the stop"."""
+    job.tracks["t1"].status = "error"
+    job.tracks["t2"].status = "cancelled"
+    job.tracks["t3"].status = "done"
+
+    monkeypatch.setattr(jobs._executor, "submit", lambda *a, **k: None)
+    assert jobs.retry_failed(job) == 1
+
+    assert job.tracks["t1"].status == "queued"
+    assert job.tracks["t2"].status == "cancelled"
+    assert job.tracks["t3"].status == "done"
+
+
+def test_a_stale_pool_submission_stands_down(job, monkeypatch, tmp_path):
+    """`start()` hands the pool every track at once, so a submission can still
+    be waiting its turn when the track is cancelled and then retried. Two live
+    attempts would write the same filename at the same time; the older one has
+    to notice it is no longer the attempt that owns this track.
+    """
+    monkeypatch.setattr(jobs, "DOWNLOADS_DIR", tmp_path)
+    monkeypatch.setattr(jobs._executor, "submit", lambda *a, **k: None)
+    state = job.tracks["t1"]
+    stale = state.generation  # what start() queued this attempt under
+
+    jobs.cancel(job)
+    assert jobs.retry_track(job, "t1") is True
+    assert state.status == "queued"  # the fresh attempt now owns the track
+
+    monkeypatch.setattr(
+        downloader,
+        "download_track",
+        lambda *a, **k: pytest.fail("a superseded attempt started downloading"),
+    )
+    jobs._run_track(job, state, stale)
+
+    assert state.status == "queued"  # left for the attempt that owns it

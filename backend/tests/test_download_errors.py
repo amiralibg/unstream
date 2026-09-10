@@ -76,3 +76,21 @@ def test_an_ordinary_failure_still_reports_what_actually_happened(monkeypatch, t
 
     assert "DRM protected" in str(exc.value)
     assert "YTDLP_COOKIEFILE" not in str(exc.value)
+
+
+def test_page_needs_to_be_reloaded_triggers_bot_check(monkeypatch, tmp_path):
+    _fail_with(
+        monkeypatch,
+        [
+            "ERROR: [youtube] x: The page needs to be reloaded.",
+            "ERROR: [youtube] y: The page needs to be reloaded.",
+            "ERROR: [youtube] z: The page needs to be reloaded.",
+            "ERROR: [soundcloud] 254111788: This video is DRM protected",
+        ],
+    )
+
+    with pytest.raises(downloader.DownloadError) as exc:
+        downloader.download_track(_track(), tmp_path, on_progress=lambda *_: None)
+
+    assert "not a bot" in str(exc.value)
+    assert "DRM" not in str(exc.value)
