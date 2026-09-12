@@ -27,13 +27,34 @@ pub struct AppState {
 struct SavedSettings {
     pub downloads_dir: Option<String>,
     pub cookies_from_browser: Option<String>,
+    /// The sidecar port from last launch — see `choose_port`.
+    pub port: Option<u16>,
 }
 
-fn get_free_port() -> u16 {
-    // In dev (debug) use fixed 8000 so Vite's /api proxy stays valid.
-    // In release use a random free port to avoid collisions with other apps.
+fn is_port_free(port: u16) -> bool {
+    TcpListener::bind(("127.0.0.1", port)).is_ok()
+}
+
+/// The port the sidecar listens on, which is also the origin the main window
+/// is pointed at.
+///
+/// That second role is why the port is a saved setting rather than a fresh
+/// random one each launch: web storage is partitioned by origin, and the
+/// origin includes the port. A port that moved every start filed the
+/// frontend's `localStorage` under a key that never came back, so the chosen
+/// language, the volume, the quality, the recent searches and any unfinished
+/// downloads were silently reset on every launch — the language being the one
+/// you notice, since the app reopened in the fallback locale.
+///
+/// Re-rolled only when something else is holding the remembered port, which is
+/// the collision the randomness was there for in the first place.
+fn choose_port(saved: Option<u16>) -> u16 {
+    // Dev (debug) is pinned to 8000 so Vite's /api proxy stays valid.
     if cfg!(debug_assertions) {
         return 8000;
+    }
+    if let Some(port) = saved.filter(|p| *p != 0 && is_port_free(*p)) {
+        return port;
     }
     TcpListener::bind("127.0.0.1:0")
         .and_then(|l| l.local_addr())
@@ -641,11 +662,22 @@ pub fn run() {
     let saved_settings = load_saved_settings(&app_data_dir);
     let initial_downloads_dir = saved_settings
         .downloads_dir
+        .clone()
         .map(PathBuf::from)
         .unwrap_or_else(get_default_downloads_dir);
 
+    // Picked before the builder so the window, the sidecar and the saved copy
+    // all agree on one port for the whole run.
+    let port = choose_port(saved_settings.port);
+    if !cfg!(debug_assertions) && saved_settings.port != Some(port) {
+        let mut settings = saved_settings.clone();
+        settings.port = Some(port);
+        let _ = save_settings(&app_data_dir, &settings);
+    }
+
     *app_state.app_data_dir.lock().unwrap() = app_data_dir;
     *app_state.downloads_dir.lock().unwrap() = initial_downloads_dir;
+    *app_state.port.lock().unwrap() = port;
 
     let app_child_cleanup = app_state.backend_child.clone();
 
@@ -692,8 +724,7 @@ pub fn run() {
             }
 
             let state = app.state::<AppState>();
-            let port = get_free_port();
-            *state.port.lock().unwrap() = port;
+            let port = *state.port.lock().unwrap();
 
             // Runtime deep-link events (macOS open-url, and forwarded
             // single-instance links with the plugin's deep-link feature).
