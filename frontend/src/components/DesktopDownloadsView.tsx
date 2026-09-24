@@ -58,7 +58,7 @@ export function DesktopDownloadsView({
 
   const filters: { id: Filter; label: string; count: number }[] = [
     { id: 'all', label: m.results.all, count: entries.length },
-    { id: 'active', label: m.desktopNav.activeDownloads(activeCount), count: activeCount },
+    { id: 'active', label: m.stages.downloading, count: activeCount },
     { id: 'completed', label: m.desktopNav.completed, count: completedCount },
   ]
 

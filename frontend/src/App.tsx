@@ -2,7 +2,14 @@ import { Suspense, lazy, useCallback, useEffect, useRef, useState, type ReactNod
 import { useMutation } from '@tanstack/react-query'
 import { AudioLines, Link2 as LinkIcon, Search, X } from 'lucide-react'
 import clsx from 'clsx'
-import { isDesktop, isLocal, notifyDownloadComplete, setWindowProgress } from './lib/desktop'
+import {
+  checkForAppUpdates,
+  installUpdateAndRelaunch,
+  isDesktop,
+  isLocal,
+  notifyDownloadComplete,
+  setWindowProgress,
+} from './lib/desktop'
 import {
   apiError,
   getArtist,
@@ -177,6 +184,23 @@ function DesktopIntegrations({ onUrl }: { onUrl: (url: string) => void }) {
   pushRef.current = push
   const mRef = useRef(m)
   mRef.current = m
+  const didCheckForUpdates = useRef(false)
+
+  useEffect(() => {
+    if (!isDesktop() || didCheckForUpdates.current) return
+    didCheckForUpdates.current = true
+    void checkForAppUpdates().then((result) => {
+      if (!result?.available || !result.version) return
+      pushRef.current(mRef.current.settings.updateAvailable(result.version), 'info', {
+        label: mRef.current.settings.installUpdate,
+        onClick: () => {
+          void installUpdateAndRelaunch().catch(() => {
+            pushRef.current(mRef.current.settings.updateFailed, 'error')
+          })
+        },
+      })
+    })
+  }, [])
 
   useEffect(() => {
     if (!isDesktop()) return
