@@ -19,12 +19,12 @@ import { useMessages } from '../lib/i18n'
 import type { Messages } from '../lib/locales/en'
 
 export const settingsCard =
-  'rounded-panel border border-white/[0.08] bg-ink-900/70 p-5 sm:p-6 shadow-lg backdrop-blur-sm transition hover:border-white/[0.12]'
+  'rounded-panel border border-fg/[0.08] bg-ink-900/70 p-5 sm:p-6 shadow-lg backdrop-blur-sm transition hover:border-fg/[0.12]'
 export const settingsCardHeading =
   'flex items-center gap-2 text-micro font-bold uppercase tracking-wider text-ink-300'
 
 const quietButton =
-  'flex h-8.5 items-center gap-1.5 rounded-ctl border border-white/[0.08] bg-white/[0.03] px-3 text-mini font-medium text-ink-300 transition hover:border-lime-flash/40 hover:text-lime-flash disabled:opacity-50 active:scale-95'
+  'flex h-8.5 items-center gap-1.5 rounded-ctl border border-fg/[0.08] bg-fg/[0.03] px-3 text-mini font-medium text-ink-300 transition hover:border-lime-flash/40 hover:text-lime-flash disabled:opacity-50 active:scale-95'
 
 const COOKIE_BROWSERS = [
   { value: 'firefox', label: 'Firefox' },
@@ -253,7 +253,7 @@ export function ConnectionCard({ autoCheck = false }: { autoCheck?: boolean }) {
         <div
           role="radiogroup"
           aria-label={m.connection.modeLabel}
-          className="flex h-9 shrink-0 items-center rounded-[10px] border border-white/[0.065] bg-black/20 p-1"
+          className="flex h-9 shrink-0 items-center rounded-[10px] border border-fg/[0.065] bg-well/20 p-1"
         >
           {modes.map((item) => (
             <button
@@ -267,7 +267,7 @@ export function ConnectionCard({ autoCheck = false }: { autoCheck?: boolean }) {
               className={clsx(
                 'flex h-7 items-center rounded-[7px] px-3 text-[11px] font-semibold transition duration-150',
                 mode === item
-                  ? 'bg-white/[0.09] text-ink-100 shadow-sm'
+                  ? 'bg-fg/[0.09] text-ink-100 shadow-sm'
                   : 'text-ink-500 hover:text-ink-200',
               )}
             >
@@ -281,7 +281,7 @@ export function ConnectionCard({ autoCheck = false }: { autoCheck?: boolean }) {
         <p className="text-micro text-ink-500">{m.connection.modeHints[mode]}</p>
 
         {mode === 'system' && (
-          <div className="flex min-h-11 items-center gap-2 rounded-ctl border border-white/[0.07] bg-black/30 px-3.5 text-mini text-ink-300">
+          <div className="flex min-h-11 items-center gap-2 rounded-ctl border border-fg/[0.07] bg-well/30 px-3.5 text-mini text-ink-300">
             {systemProxy ? (
               <>
                 <span className="text-ink-400">{m.connection.systemProxy}:</span>
@@ -317,8 +317,8 @@ export function ConnectionCard({ autoCheck = false }: { autoCheck?: boolean }) {
               aria-label={m.connection.modes.custom}
               aria-invalid={saveError ? true : undefined}
               className={clsx(
-                'h-11 min-w-0 flex-1 rounded-ctl border bg-black/30 px-3.5 font-mono text-mini text-ink-100 outline-none transition placeholder:text-ink-600 focus:border-lime-flash/50',
-                saveError ? 'border-danger/50' : 'border-white/[0.07]',
+                'h-11 min-w-0 flex-1 rounded-ctl border bg-well/30 px-3.5 font-mono text-mini text-ink-100 outline-none transition placeholder:text-ink-600 focus:border-lime-flash/50',
+                saveError ? 'border-danger/50' : 'border-fg/[0.07]',
               )}
             />
             <button
@@ -364,7 +364,7 @@ export function ConnectionCard({ autoCheck = false }: { autoCheck?: boolean }) {
         </div>
 
         {detected && (
-          <div className="animate-fade-up rounded-ctl border border-white/[0.07] bg-black/20 p-3.5">
+          <div className="animate-fade-up rounded-ctl border border-fg/[0.07] bg-well/20 p-3.5">
             {detected.found.length > 0 ? (
               <>
                 <p className="text-micro font-semibold text-ink-400">{m.connection.detected}</p>
@@ -381,7 +381,7 @@ export function ConnectionCard({ autoCheck = false }: { autoCheck?: boolean }) {
                             'flex h-8 items-center gap-2 rounded-full border ps-3 pe-1 text-mini transition',
                             inUse
                               ? 'border-lime-flash/40 bg-lime-flash/10 text-lime-flash'
-                              : 'border-white/[0.08] bg-white/[0.03] text-ink-200 hover:border-lime-flash/40',
+                              : 'border-fg/[0.08] bg-fg/[0.03] text-ink-200 hover:border-lime-flash/40',
                           )}
                         >
                           <span dir="ltr" className="font-mono">
@@ -411,10 +411,10 @@ export function ConnectionCard({ autoCheck = false }: { autoCheck?: boolean }) {
         {testFailed && <p className="text-mini text-danger">{m.errors.noAnswer}</p>}
 
         {diagnosis && (
-          <div className="animate-fade-up overflow-hidden rounded-ctl border border-white/[0.07] bg-black/20">
+          <div className="animate-fade-up overflow-hidden rounded-ctl border border-fg/[0.07] bg-well/20">
             <p
               className={clsx(
-                'border-b border-white/[0.05] px-3.5 py-2.5 text-mini font-semibold',
+                'border-b border-fg/[0.05] px-3.5 py-2.5 text-mini font-semibold',
                 okCount === diagnosis.services.length ? 'text-lime-flash' : 'text-ink-200',
               )}
             >
@@ -422,7 +422,7 @@ export function ConnectionCard({ autoCheck = false }: { autoCheck?: boolean }) {
                 ? m.connection.allGood
                 : m.connection.someFailed(okCount, diagnosis.services.length)}
             </p>
-            <ul className="divide-y divide-white/[0.045]">
+            <ul className="divide-y divide-fg/[0.045]">
               {diagnosis.services.map((check) => (
                 <StatusRow
                   key={check.id}
@@ -465,7 +465,7 @@ export function ConnectionCard({ autoCheck = false }: { autoCheck?: boolean }) {
               />
             </ul>
             {tip && (
-              <p className="flex gap-2 border-t border-white/[0.05] bg-white/[0.025] px-3.5 py-3 text-mini leading-relaxed text-ink-200">
+              <p className="flex gap-2 border-t border-fg/[0.05] bg-fg/[0.025] px-3.5 py-3 text-mini leading-relaxed text-ink-200">
                 <TriangleAlert className="mt-0.5 size-3.5 shrink-0 text-ink-300" />
                 <span>{tip}</span>
               </p>
@@ -543,7 +543,7 @@ export function CookiesCard() {
       {(checking || described || saveFailed) && (
         <div
           role="status"
-          className="mt-4 flex gap-2.5 rounded-ctl border border-white/[0.07] bg-black/20 px-3.5 py-3 animate-fade-up"
+          className="mt-4 flex gap-2.5 rounded-ctl border border-fg/[0.07] bg-well/20 px-3.5 py-3 animate-fade-up"
         >
           {checking ? (
             <LoaderCircle className="mt-0.5 size-3.5 shrink-0 animate-spin text-ink-400" />

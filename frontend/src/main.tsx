@@ -2,6 +2,8 @@ import { StrictMode, Suspense, lazy } from 'react'
 import { createRoot } from 'react-dom/client'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import './index.css'
+// Sets the theme on <html> before anything renders.
+import './lib/theme.ts'
 import App from './App.tsx'
 import { trackPageView, watchInstall } from './lib/analytics.ts'
 

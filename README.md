@@ -20,6 +20,8 @@ Paste a **Spotify / Deezer / Apple Music / YouTube / SoundCloud** track, album o
 
 No accounts. No API keys. Nothing paid. You run it, so the files are yours and nobody is standing in between.
 
+The desktop app is also a full music player: play anything in full before downloading it, keep your own **playlists** — mixing songs on disk with ones that stream — download a whole playlist in one go, rearrange the queue, let **autoplay** carry on with similar songs when the queue ends (switchable), pick a **light or dark theme** in the original lime or in blue, and export a playlist to open on another device (or as `.m3u8` in any other player).
+
 > The interface ships in **Farsi and English**, switchable from the header. Farsi is the default because that is the audience it was built for ([why](docs/DESIGN.md#farsi-only)); set `UNSTREAM_DEFAULT_LOCALE=en` if you want English to be what people land on.
 
 ## Get the App (Recommended)
@@ -187,6 +189,12 @@ docker compose exec -T api python -c \
 | `POST /api/jobs/{id}/cancel`                           | Stop a running job. Finished tracks keep their files; answers with the job's new state     |
 | `GET /api/jobs/{id}/tracks/{tid}/file`                 | Download one finished track                                                               |
 | `GET /api/jobs/{id}/zip`                               | ZIP of all finished tracks, streamed as it's built                                        |
+| `GET` · `POST /api/playlists`                          | List or create your playlists (desktop only — see below)                                  |
+| `GET` · `PATCH` · `DELETE /api/playlists/{id}`         | One playlist, with each song marked on disk or not; rename, reorder, delete               |
+| `POST /api/playlists/{id}/tracks` · `/download`        | Add songs; download every song not yet on disk as one job                                 |
+| `POST /api/playlists/{id}/export` · `/api/playlists/import` | Write `.unstream.json` / `.m3u8` into the music folder's `Playlists/`; import one     |
+| `GET /api/recommend?title=&artist=`                    | Songs like this one, for autoplay (Deezer radio, YouTube Mix as fallback)                 |
+| `GET /api/stream?title=&artist=&duration_ms=`          | Play a song that isn't on disk, relayed with range support (desktop only)                 |
 | `GET /api/admin/stats?days=` · `/api/admin/extraction` | Dashboard and diagnostics, `Authorization: Bearer $ADMIN_TOKEN`                           |
 
 ## Development

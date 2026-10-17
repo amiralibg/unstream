@@ -244,7 +244,7 @@ function DesktopAppShowcase() {
       />
 
       {/* Main Window Frame */}
-      <div className="overflow-hidden rounded-panel border border-ink-750 bg-[#0c0e0b] shadow-[0_25px_70px_rgba(0,0,0,0.85)] backdrop-blur-2xl transition duration-300">
+      <div className="overflow-hidden rounded-panel border border-ink-750 bg-shell shadow-[0_25px_70px_rgba(0,0,0,0.85)] backdrop-blur-2xl transition duration-300">
         {/* Titlebar */}
         <div
           dir="ltr"
@@ -280,7 +280,7 @@ function DesktopAppShowcase() {
         {/* Window Interior */}
         <div className="flex flex-col sm:flex-row">
           {/* Mini Sidebar */}
-          <aside className="hidden w-44 shrink-0 border-e border-ink-800/80 bg-[#090b08]/90 p-3 sm:flex sm:flex-col sm:justify-between">
+          <aside className="hidden w-44 shrink-0 border-e border-ink-800/80 bg-shell/90 p-3 sm:flex sm:flex-col sm:justify-between">
             <div className="space-y-4">
               <div className="flex items-center gap-2 px-2 pt-1">
                 <span className="grid size-6 place-items-center rounded-ctl bg-lime-flash text-lime-ink">
@@ -291,11 +291,11 @@ function DesktopAppShowcase() {
 
               {/* Navigation Items */}
               <nav className="space-y-1 text-mini">
-                <div className="flex items-center gap-2.5 rounded-ctl px-2.5 py-1.5 text-ink-400 transition hover:bg-white/[0.04] hover:text-ink-200">
+                <div className="flex items-center gap-2.5 rounded-ctl px-2.5 py-1.5 text-ink-400 transition hover:bg-fg/[0.04] hover:text-ink-200">
                   <Search className="size-4" />
                   <span>{m.desktopNav.search}</span>
                 </div>
-                <div className="flex items-center justify-between rounded-ctl px-2.5 py-1.5 text-ink-400 transition hover:bg-white/[0.04] hover:text-ink-200">
+                <div className="flex items-center justify-between rounded-ctl px-2.5 py-1.5 text-ink-400 transition hover:bg-fg/[0.04] hover:text-ink-200">
                   <div className="flex items-center gap-2.5">
                     <FolderDown className="size-4" />
                     <span>{m.desktopNav.downloads}</span>
@@ -308,7 +308,7 @@ function DesktopAppShowcase() {
                   <ListMusic className="size-4" />
                   <span>{m.desktopNav.library}</span>
                 </div>
-                <div className="flex items-center gap-2.5 rounded-ctl px-2.5 py-1.5 text-ink-400 transition hover:bg-white/[0.04] hover:text-ink-200">
+                <div className="flex items-center gap-2.5 rounded-ctl px-2.5 py-1.5 text-ink-400 transition hover:bg-fg/[0.04] hover:text-ink-200">
                   <Settings className="size-4" />
                   <span>{m.desktopNav.settings}</span>
                 </div>
@@ -335,7 +335,7 @@ function DesktopAppShowcase() {
               <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
                 <div className="flex items-center gap-3.5 min-w-0">
                   {/* Album Cover Mock */}
-                  <div className="relative size-14 shrink-0 overflow-hidden rounded-ctl border border-white/10 bg-gradient-to-tr from-lime-900/60 via-emerald-800/40 to-ink-800 shadow-md">
+                  <div className="relative size-14 shrink-0 overflow-hidden rounded-ctl border border-fg/10 bg-gradient-to-tr from-lime-900/60 via-emerald-800/40 to-ink-800 shadow-md">
                     <div className="absolute inset-0 grid place-items-center text-lime-flash/80">
                       <Music className="size-6" />
                     </div>
@@ -681,7 +681,7 @@ function Shell() {
     <div className="safe-x relative flex min-h-screen flex-col overflow-x-hidden bg-ink-950 text-ink-100">
       {/* Background ambient lighting glow */}
       <div
-        className="pointer-events-none absolute -top-40 left-1/2 -translate-x-1/2 h-[500px] w-[90vw] max-w-[56rem] rounded-full bg-[radial-gradient(ellipse_at_top,rgba(200,242,79,0.11),transparent_70%)] blur-2xl"
+        className="pointer-events-none absolute -top-40 left-1/2 -translate-x-1/2 h-[500px] w-[90vw] max-w-[56rem] rounded-full bg-[radial-gradient(ellipse_at_top,color-mix(in_oklab,var(--color-lime-flash)_11%,transparent),transparent_70%)] blur-2xl"
         aria-hidden="true"
       />
 
@@ -801,7 +801,7 @@ function Shell() {
               aria-label={t.title}
               className="mx-auto mt-8 max-w-xl animate-fade-up [animation-delay:180ms]"
             >
-              <div className="relative overflow-hidden rounded-panel border border-lime-flash/30 bg-gradient-to-b from-lime-flash/[0.09] via-ink-900/90 to-ink-900/95 p-6 sm:p-7 shadow-2xl shadow-black/60 backdrop-blur-md">
+              <div className="relative overflow-hidden rounded-panel border border-lime-flash/30 bg-gradient-to-b from-lime-flash/[0.09] via-ink-900/90 to-ink-900/95 p-6 sm:p-7 shadow-2xl shadow-shade/60 backdrop-blur-md">
                 {/* Platform detection badge */}
                 <div className="flex items-center justify-between gap-3 pb-5 border-b border-ink-800/80">
                   <div className="flex items-center gap-3">

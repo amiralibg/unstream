@@ -19,8 +19,34 @@ A release-grouped collection of tracks fetched from a source link or search.
 _Avoid_: —
 
 **پلی‌لیست** (Playlist):
-A user-curated collection of tracks from Spotify/Deezer.
+A curated collection of tracks — one pasted from Spotify/Deezer, or one the
+person makes in the app, which can mix songs on disk with songs that stream.
 _Avoid_: فهرست پخش، لیست پخش
+
+**صف پخش** (Queue):
+What the player plays next, in order. Always the full phrase: a bare «صف»
+already means the download queue («رفت تو صف»).
+_Avoid_: صف (alone), لیست پخش
+
+**پخش** (Play):
+Playing a song in full, from disk or online. «آنلاین» marks a song that
+streams rather than plays from a file.
+_Avoid_: پلی، استریم (in UI copy)
+
+**پخش خودکار** (Autoplay):
+Carrying on with similar songs once the play queue runs out; the songs it
+adds are «آهنگ‌های مشابه».
+_Avoid_: اتوپلی، پخش اتوماتیک، پیشنهاد خودکار
+
+**تم** / **رنگ** (Theme / Palette):
+The light-or-dark mode, and the accent palette it is drawn in («اصلی» or
+«آبی»). Modes are «روشن» and «تیره».
+_Avoid_: پوسته، قالب، دارک‌مود
+
+**خروجی** / **وارد کردن** (Export / Import):
+Saving a playlist to a file for another device or player, and making a
+playlist from such a file.
+_Avoid_: اکسپورت، ایمپورت، دریافت خروجی
 
 **آرتیست** (Artist):
 The performer a track or album belongs to; also a browsable view of their releases.

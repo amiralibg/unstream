@@ -241,6 +241,62 @@ def player_clients() -> list[str]:
     return [c for c in clients if c]
 
 
+def without_pinned_clients(opts: dict) -> dict | None:
+    """`opts` with the player-client pin taken out, or None if nothing was
+    pinned — what a retry falls back to: yt-dlp's own choice of clients."""
+    args = dict(opts.get("extractor_args") or {})
+    youtube = dict(args.get("youtube") or {})
+    if "player_client" not in youtube:
+        return None
+    youtube.pop("player_client")
+    if youtube:
+        args["youtube"] = youtube
+    else:
+        args.pop("youtube")
+    out = dict(opts)
+    if args:
+        out["extractor_args"] = args
+    else:
+        out.pop("extractor_args", None)
+    return out
+
+
+# Set once the default clients have worked where the pinned ones were refused.
+_pin_refused = False
+
+
+def run(opts: dict, action):
+    """`action(ydl)` on a YoutubeDL built from `opts`, retried once without
+    the player-client pin when YouTube refuses the pinned clients.
+
+    The pin (YTDLP_PLAYER_CLIENTS, which the desktop launcher sets to tv,web)
+    exists because those clients once survived bot checks the default did
+    not. YouTube moves; by autumn 2026 tv answers "The page needs to be
+    reloaded" and web has no audio formats, while yt-dlp's default — which
+    its maintainers re-tune every release — works. Keeping the pin as the
+    first try and the default as the second means neither going stale can
+    break playback or downloads on its own. A cancel is not an error and is
+    never retried.
+    """
+    global _pin_refused
+    fallback = without_pinned_clients(opts)
+    if _pin_refused and fallback is not None:
+        # YouTube already refused the pin in this process; trying it again
+        # costs ~20s of retries per song before the default gets its turn.
+        with YoutubeDL(fallback) as ydl:
+            return action(ydl)
+    try:
+        with YoutubeDL(opts) as ydl:
+            return action(ydl)
+    except YtdlpError as exc:
+        if fallback is None or "[youtube]" not in str(exc):
+            raise
+    with YoutubeDL(fallback) as ydl:
+        result = action(ydl)
+    _pin_refused = True
+    return result
+
+
 def is_desktop() -> bool:
     return os.getenv("UNSTREAM_DESKTOP", "").lower() in ("1", "true", "yes")
 

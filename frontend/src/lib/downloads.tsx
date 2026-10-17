@@ -11,12 +11,15 @@ import {
 import {
   cancelJob,
   DEFAULT_QUALITY,
+  downloadPlaylist,
   getJobs,
   isQuality,
   resolveUrl,
   retryJob,
   retryTrack,
   startDownload,
+  downloadSong,
+  type PlaylistTrackInput,
   type Collection,
   type Job,
   type Quality,
@@ -69,6 +72,13 @@ interface DownloadsContextValue {
   start: (url: string, collection: Collection, trackIds?: string[]) => Promise<void>
   /** One-click download of a single search result: resolve, then queue. */
   startFromResult: (result: SearchResult) => Promise<void>
+  /** Download every song of one of the person's playlists not yet on disk.
+   *  Filed under `playlistDownloadUrl(id)`, so the playlist view can find
+   *  its jobs the way an album view finds its own. Resolves to the number
+   *  of songs queued. */
+  startPlaylist: (playlistId: string, coverUrl: string | null) => Promise<number>
+  /** Download one song known only by its metadata — the one being streamed. */
+  startSong: (song: PlaylistTrackInput) => Promise<void>
   /** Stop a running job. Rejects if the server wouldn't; callers report it. */
   cancel: (jobId: string) => Promise<void>
   retry: (jobId: string) => Promise<void>
@@ -81,6 +91,15 @@ interface DownloadsContextValue {
 }
 
 const DownloadsContext = createContext<DownloadsContextValue | null>(null)
+
+/** The key a playlist's download jobs are filed under. Not a real link — a
+ *  playlist has none — but nothing in the store needs one to be. */
+export const playlistDownloadUrl = (playlistId: string) => `playlist:${playlistId}`
+
+/** The key a single song's download is filed under — same idea, so the
+ *  player bar can find its job without the song having a link. */
+export const songDownloadUrl = (song: PlaylistTrackInput) =>
+  `song:${song.title.toLowerCase()}|${(song.artists[0] ?? '').toLowerCase()}`
 
 const isFinished = (e: DownloadEntry) => e.job?.finished ?? false
 /** Nothing more will ever arrive for this entry, so stop polling it. */
@@ -225,6 +244,49 @@ export function DownloadsProvider({ children }: { children: ReactNode }) {
     },
     [start],
   )
+
+  const startPlaylist = useCallback(async (playlistId: string, coverUrl: string | null) => {
+    const chosen = qualityRef.current
+    const started = await downloadPlaylist(playlistId, chosen, lyricsRef.current)
+    setEntries((prev) => [
+      ...prev,
+      {
+        jobId: started.job_id,
+        url: playlistDownloadUrl(playlistId),
+        name: started.name,
+        kind: 'playlist',
+        cover_url: coverUrl,
+        tracks: started.tracks,
+        job: null,
+        etaSeconds: null,
+        quality: chosen,
+        startedAt: Date.now(),
+      },
+    ])
+    setPanelOpen(true)
+    return started.tracks.length
+  }, [])
+
+  const startSong = useCallback(async (song: PlaylistTrackInput) => {
+    const chosen = qualityRef.current
+    const started = await downloadSong(song, chosen, lyricsRef.current)
+    setEntries((prev) => [
+      ...prev,
+      {
+        jobId: started.job_id,
+        url: songDownloadUrl(song),
+        name: started.name,
+        kind: 'track',
+        cover_url: song.cover_url ?? null,
+        tracks: started.tracks,
+        job: null,
+        etaSeconds: null,
+        quality: chosen,
+        startedAt: Date.now(),
+      },
+    ])
+    setPanelOpen(true)
+  }, [])
 
   const patch = useCallback((jobId: string, changes: Partial<DownloadEntry>) => {
     setEntries((prev) => prev.map((e) => (e.jobId === jobId ? { ...e, ...changes } : e)))
@@ -401,6 +463,8 @@ export function DownloadsProvider({ children }: { children: ReactNode }) {
       setEmbedLyrics,
       start,
       startFromResult,
+      startPlaylist,
+      startSong,
       cancel,
       retry,
       retryOne,
@@ -418,6 +482,8 @@ export function DownloadsProvider({ children }: { children: ReactNode }) {
       setEmbedLyrics,
       start,
       startFromResult,
+      startPlaylist,
+      startSong,
       cancel,
       retry,
       retryOne,

@@ -8,6 +8,7 @@ import io
 import json
 import os
 import re
+import uuid
 import zipfile
 from collections.abc import Iterator
 from concurrent.futures import ThreadPoolExecutor, wait
@@ -24,8 +25,24 @@ from pydantic import BaseModel
 
 # Importing `net` installs the proxy-aware opener every provider's urlopen()
 # goes through, before the first request can be served.
-from . import analytics, deezer, downloader, embed, itunes, jobs, library, limits, lyrics, net, soundcloud, ytdlp
-from .models import Collection, ProviderError, SearchResult
+from . import (
+    analytics,
+    deezer,
+    downloader,
+    embed,
+    itunes,
+    jobs,
+    library,
+    limits,
+    lyrics,
+    net,
+    playlists,
+    recommend,
+    soundcloud,
+    stream,
+    ytdlp,
+)
+from .models import Collection, ProviderError, SearchResult, Track
 
 # Every provider here is keyless and free — no accounts, no API credentials.
 SEARCH_TIMEOUT_SECONDS = 20
@@ -439,6 +456,55 @@ def get_lyrics(
     }
 
 
+class SongDownload(BaseModel):
+    title: str
+    artists: list[str] = []
+    album: str = ""
+    duration_ms: int = 0
+    cover_url: str | None = None
+    source_url: str | None = None
+    quality: str = downloader.DEFAULT_QUALITY
+    lyrics: bool = True
+
+
+@app.post("/api/download/song")
+def download_song(body: SongDownload, request: Request) -> dict:
+    """Download one song known only by its metadata — the one the player is
+    streaming has no catalog page to hand to /api/download."""
+    if body.quality not in downloader.QUALITIES:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Quality must be one of: {', '.join(downloader.QUALITIES)}",
+        )
+    if not body.title.strip():
+        raise HTTPException(status_code=400, detail="No tracks to download")
+    client = limits.enforce("download", request)
+    if limits.MAX_ACTIVE_JOBS > 0 and jobs.active_count(client) >= limits.MAX_ACTIVE_JOBS:
+        raise HTTPException(
+            status_code=429,
+            detail="Too many downloads at once — wait for one to finish.",
+        )
+    source_url = body.source_url if body.source_url and re.match(r"^https?://", body.source_url) else None
+    track = Track(
+        id=uuid.uuid4().hex,
+        title=body.title.strip(),
+        artists=body.artists or [""],
+        album=body.album,
+        duration_ms=max(0, body.duration_ms),
+        cover_url=body.cover_url,
+        source_url=source_url,
+    )
+    name = f"{', '.join(a for a in track.artists if a)} - {track.title}".strip(" -")
+    visitor = limits.visitor(request)
+    job = jobs.start(
+        name, [track], body.quality, embed_lyrics=body.lyrics, owner=client, visitor=visitor
+    )
+    analytics.record(
+        "download_start", visitor=visitor, source="song", detail=body.quality, label=name, value=1
+    )
+    return {"job_id": job.id, "name": name, "tracks": [{"id": track.id, "title": track.title}]}
+
+
 @app.post("/api/download")
 def download(body: DownloadRequest, request: Request) -> dict:
     if body.quality not in downloader.QUALITIES:
@@ -781,6 +847,266 @@ def library_lyrics(file_id: str) -> dict:
     if found is None:
         raise HTTPException(status_code=404, detail="No lyrics on disk")
     return found
+
+
+# --------------------------------------------------------------------------
+# Playlists and streaming — the desktop's player. See playlists.py and
+# stream.py for why both are off on a hosted instance.
+
+
+def _require_playlists() -> None:
+    if not playlists.enabled():
+        raise HTTPException(status_code=404, detail="Playlists are not enabled here")
+
+
+def _playlist_error(exc: playlists.PlaylistError) -> HTTPException:
+    status = 404 if isinstance(exc, playlists.NotFound) else 400
+    return HTTPException(status_code=status, detail=str(exc))
+
+
+class PlaylistTrackIn(BaseModel):
+    """One song as the UI hands it over: catalog metadata, or a library
+    file id for a song that only exists on disk."""
+
+    title: str
+    artists: list[str] = []
+    album: str = ""
+    duration_ms: int = 0
+    cover_url: str | None = None
+    source_url: str | None = None
+    file_id: str | None = None
+
+
+class PlaylistCreate(BaseModel):
+    name: str
+    tracks: list[PlaylistTrackIn] = []
+
+
+class PlaylistUpdate(BaseModel):
+    name: str | None = None
+    order: list[str] | None = None
+
+
+class PlaylistTracksAdd(BaseModel):
+    tracks: list[PlaylistTrackIn]
+
+
+class PlaylistDownload(BaseModel):
+    quality: str = downloader.DEFAULT_QUALITY
+    lyrics: bool = True
+
+
+class PlaylistExport(BaseModel):
+    format: str = "json"
+
+
+class PlaylistImport(BaseModel):
+    text: str
+    filename: str = ""
+
+
+@app.get("/api/playlists")
+def playlist_list() -> dict:
+    _require_playlists()
+    try:
+        return {"playlists": playlists.list_all()}
+    except playlists.PlaylistError as exc:
+        raise _playlist_error(exc) from exc
+
+
+@app.post("/api/playlists")
+def playlist_create(body: PlaylistCreate) -> dict:
+    _require_playlists()
+    try:
+        return playlists.create(body.name, [t.model_dump() for t in body.tracks])
+    except playlists.PlaylistError as exc:
+        raise _playlist_error(exc) from exc
+
+
+@app.post("/api/playlists/import")
+def playlist_import(body: PlaylistImport) -> dict:
+    """Make a playlist from an exported file's text. The file is read in the
+    webview and posted here, so the backend never opens a path it was given."""
+    _require_playlists()
+    try:
+        return playlists.import_text(body.text, body.filename)
+    except playlists.PlaylistError as exc:
+        raise _playlist_error(exc) from exc
+
+
+@app.get("/api/playlists/{playlist_id}")
+def playlist_get(playlist_id: str) -> dict:
+    _require_playlists()
+    try:
+        return playlists.get(playlist_id)
+    except playlists.PlaylistError as exc:
+        raise _playlist_error(exc) from exc
+
+
+@app.patch("/api/playlists/{playlist_id}")
+def playlist_update(playlist_id: str, body: PlaylistUpdate) -> dict:
+    _require_playlists()
+    try:
+        return playlists.update(playlist_id, name=body.name, order=body.order)
+    except playlists.PlaylistError as exc:
+        raise _playlist_error(exc) from exc
+
+
+@app.delete("/api/playlists/{playlist_id}")
+def playlist_delete(playlist_id: str) -> dict:
+    _require_playlists()
+    try:
+        playlists.delete(playlist_id)
+    except playlists.PlaylistError as exc:
+        raise _playlist_error(exc) from exc
+    return {"ok": True}
+
+
+@app.post("/api/playlists/{playlist_id}/tracks")
+def playlist_add(playlist_id: str, body: PlaylistTracksAdd) -> dict:
+    _require_playlists()
+    try:
+        full, added, skipped = playlists.add_tracks(
+            playlist_id, [t.model_dump() for t in body.tracks]
+        )
+    except playlists.PlaylistError as exc:
+        raise _playlist_error(exc) from exc
+    return {"playlist": full, "added": added, "skipped": skipped}
+
+
+@app.delete("/api/playlists/{playlist_id}/tracks/{uid}")
+def playlist_remove(playlist_id: str, uid: str) -> dict:
+    _require_playlists()
+    try:
+        return playlists.remove_track(playlist_id, uid)
+    except playlists.PlaylistError as exc:
+        raise _playlist_error(exc) from exc
+
+
+@app.post("/api/playlists/{playlist_id}/download")
+def playlist_download(playlist_id: str, body: PlaylistDownload, request: Request) -> dict:
+    """Download every song in the playlist that is not on disk yet, as one
+    job named after the playlist. Songs already in the library are skipped,
+    so pressing it again after a partial failure fetches only what is left."""
+    _require_playlists()
+    if body.quality not in downloader.QUALITIES:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Quality must be one of: {', '.join(downloader.QUALITIES)}",
+        )
+    try:
+        name, tracks = playlists.missing_tracks(playlist_id)
+    except playlists.PlaylistError as exc:
+        raise _playlist_error(exc) from exc
+    if not tracks:
+        raise HTTPException(status_code=400, detail="Everything is already downloaded")
+    client = limits.enforce("download", request)
+    if limits.MAX_ACTIVE_JOBS > 0 and jobs.active_count(client) >= limits.MAX_ACTIVE_JOBS:
+        raise HTTPException(
+            status_code=429,
+            detail="Too many downloads at once — wait for one to finish.",
+        )
+    if limits.MAX_TRACKS_PER_JOB > 0 and len(tracks) > limits.MAX_TRACKS_PER_JOB:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Too many tracks — {limits.MAX_TRACKS_PER_JOB} at a time at most.",
+        )
+    visitor = limits.visitor(request)
+    job = jobs.start(
+        name, tracks, body.quality, embed_lyrics=body.lyrics, owner=client, visitor=visitor
+    )
+    analytics.record(
+        "download_start",
+        visitor=visitor,
+        source="playlist",
+        detail=body.quality,
+        label=name,
+        value=len(tracks),
+    )
+    return {
+        "job_id": job.id,
+        "name": name,
+        "tracks": [{"id": t.id, "title": t.title} for t in tracks],
+    }
+
+
+@app.post("/api/playlists/{playlist_id}/export")
+def playlist_export(playlist_id: str, body: PlaylistExport) -> dict:
+    """Write the playlist into the music folder's Playlists/ and say where,
+    so the desktop shell can show it in the file manager."""
+    _require_playlists()
+    try:
+        path = playlists.export(playlist_id, body.format)
+    except playlists.PlaylistError as exc:
+        raise _playlist_error(exc) from exc
+    except OSError as exc:
+        raise HTTPException(status_code=400, detail=f"Could not write the file: {exc}") from exc
+    return {"path": str(path.resolve()), "dir": str(path.parent.resolve()), "filename": path.name}
+
+
+@app.get("/api/recommend")
+def recommend_tracks(
+    request: Request,
+    title: str = Query("", max_length=500),
+    artist: str = Query("", max_length=500),
+) -> dict:
+    """Songs like this one, for autoplay to queue when the queue runs out.
+    Each carries `file_id` when it is already in the library."""
+    if not title.strip() and not artist.strip():
+        raise HTTPException(status_code=400, detail="Nothing to suggest from")
+    limits.enforce("resolve", request)
+    try:
+        tracks = recommend.similar(title.strip(), artist.strip())
+    except ProviderError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except OSError as exc:
+        raise _unreachable(exc) from exc
+    return {"tracks": tracks}
+
+
+@app.api_route("/api/stream", methods=["GET", "HEAD"])
+def stream_track(
+    request: Request,
+    title: str = Query(max_length=500),
+    artist: str = Query("", max_length=500),
+    album: str = Query("", max_length=500),
+    duration_ms: int = 0,
+    source_url: str = Query("", max_length=2000),
+) -> Response:
+    """Full-length playback of a song that is not on disk.
+
+    Keyed by metadata rather than an id, so any row anywhere — a search
+    result, an album, a playlist entry — can be played with nothing saved
+    first. HEAD resolves the song and answers without a body, which is how
+    the player warms up the next song in the queue while this one plays.
+    """
+    if not stream.enabled():
+        raise HTTPException(status_code=404, detail="Streaming is not enabled here")
+    track = Track(
+        id="stream",
+        title=title,
+        artists=[artist] if artist else [],
+        album=album,
+        duration_ms=max(0, duration_ms),
+        cover_url=None,
+        source_url=source_url if re.match(r"^https?://", source_url) else None,
+    )
+    try:
+        if request.method == "HEAD":
+            source = stream.resolve(track)
+            return Response(
+                headers={"Accept-Ranges": "bytes", "Content-Type": source.media_type}
+            )
+        relay = stream.open_relay(track, request.headers.get("range"))
+    except stream.StreamError as exc:
+        raise HTTPException(status_code=502, detail=str(exc)) from exc
+    except OSError as exc:
+        # A 416 from the host: the player asked past the end. Pass it on so
+        # it stops asking rather than reading it as a broken song.
+        if getattr(exc, "code", None) == 416:
+            return Response(status_code=416)
+        raise HTTPException(status_code=502, detail=f"Could not reach the audio host: {exc}")
+    return StreamingResponse(relay.body, status_code=relay.status, headers=relay.headers)
 
 
 class _ZipSink(io.RawIOBase):

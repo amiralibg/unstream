@@ -175,6 +175,14 @@ const ERROR_PHRASES: [RegExp, (m: Messages, n: string) => string][] = [
   [/^Track not ready/, (m) => m.errors.notReady],
   [/^Unknown job/, (m) => m.errors.unknownJob],
   [/^Empty search query/, (m) => m.errors.emptyQuery],
+  [/^A playlist needs a name/, (m) => m.errors.playlistName],
+  [/^Unknown playlist/, (m) => m.errors.unknownPlaylist],
+  [/^Not a playlist file/, (m) => m.errors.playlistUnreadable],
+  [/^This playlist was exported by a newer/, (m) => m.errors.playlistNewer],
+  [/^That playlist has no songs/, (m) => m.errors.playlistEmpty],
+  [/^That file is too large to be a playlist/, (m) => m.errors.playlistTooLarge],
+  [/^Everything is already downloaded/, (m) => m.errors.alreadyDownloaded],
+  [/^Could not find this song to play/, (m) => m.errors.streamMissing],
   // Last, and not anchored: provider errors wrap the socket's own words.
   [UNREACHABLE, (m) => m.errors.unreachable],
 ]
@@ -376,4 +384,207 @@ export async function getLibraryLyrics(fileId: string): Promise<Lyrics | null> {
     if (axios.isAxiosError(err) && err.response?.status === 404) return null
     throw err
   }
+}
+
+/** A song as a playlist keeps it: catalog metadata that means the same thing
+ *  on any machine, plus — per read — whether this machine has it on disk.
+ *  `file_id` is null for a song that would have to stream or download. */
+export interface PlaylistTrack {
+  uid: string
+  title: string
+  artists: string[]
+  album: string
+  duration_ms: number
+  cover_url: string | null
+  source_url: string | null
+  file_id: string | null
+  /** What to show as art: the catalog's cover, else the file's own. */
+  cover: string | null
+}
+
+export interface PlaylistSummary {
+  id: string
+  name: string
+  created_at: number
+  updated_at: number
+  count: number
+  on_disk: number
+  duration_ms: number
+  covers: string[]
+}
+
+export interface Playlist {
+  id: string
+  name: string
+  created_at: number
+  updated_at: number
+  tracks: PlaylistTrack[]
+}
+
+/** What the UI hands over when it adds a song: catalog metadata from a
+ *  search, an album or a stream — or a library file id for a song that only
+ *  exists on disk. */
+export interface PlaylistTrackInput {
+  title: string
+  artists: string[]
+  album?: string
+  duration_ms?: number
+  cover_url?: string | null
+  source_url?: string | null
+  file_id?: string | null
+}
+
+export const trackInput = (track: Track): PlaylistTrackInput => ({
+  title: track.title,
+  artists: track.artists,
+  album: track.album,
+  duration_ms: track.duration_ms,
+  cover_url: track.cover_url,
+  source_url: track.source_url,
+})
+
+export const libraryInput = (track: LibraryTrack): PlaylistTrackInput => ({
+  title: track.title,
+  artists: track.artist ? [track.artist] : [],
+  album: track.album,
+  duration_ms: track.duration_ms,
+  file_id: track.id,
+})
+
+export async function getPlaylists(): Promise<PlaylistSummary[]> {
+  const { data } = await client.get<{ playlists: PlaylistSummary[] }>('/playlists')
+  return data.playlists
+}
+
+export async function getPlaylist(id: string): Promise<Playlist> {
+  const { data } = await client.get<Playlist>(`/playlists/${id}`)
+  return data
+}
+
+export async function createPlaylist(
+  name: string,
+  tracks: PlaylistTrackInput[] = [],
+): Promise<Playlist> {
+  const { data } = await client.post<Playlist>('/playlists', { name, tracks })
+  return data
+}
+
+export async function updatePlaylist(
+  id: string,
+  changes: { name?: string; order?: string[] },
+): Promise<Playlist> {
+  const { data } = await client.patch<Playlist>(`/playlists/${id}`, changes)
+  return data
+}
+
+export async function deletePlaylist(id: string): Promise<void> {
+  await client.delete(`/playlists/${id}`)
+}
+
+export async function addToPlaylist(
+  id: string,
+  tracks: PlaylistTrackInput[],
+): Promise<{ playlist: Playlist; added: number; skipped: number }> {
+  const { data } = await client.post<{ playlist: Playlist; added: number; skipped: number }>(
+    `/playlists/${id}/tracks`,
+    { tracks },
+  )
+  return data
+}
+
+export async function removeFromPlaylist(id: string, uid: string): Promise<Playlist> {
+  const { data } = await client.delete<Playlist>(`/playlists/${id}/tracks/${uid}`)
+  return data
+}
+
+/** Download every song in the playlist that isn't on disk yet, as one job. */
+export async function downloadPlaylist(
+  id: string,
+  quality: Quality,
+  lyrics: boolean,
+): Promise<{ job_id: string; name: string; tracks: { id: string; title: string }[] }> {
+  const { data } = await client.post<{
+    job_id: string
+    name: string
+    tracks: { id: string; title: string }[]
+  }>(`/playlists/${id}/download`, { quality, lyrics })
+  return data
+}
+
+/** One song known only by its metadata — what the player has for a stream.
+ *  Resolves to the job, shaped like a playlist's so the dock can show it. */
+export async function downloadSong(
+  song: PlaylistTrackInput,
+  quality: Quality,
+  lyrics: boolean,
+): Promise<{ job_id: string; name: string; tracks: { id: string; title: string }[] }> {
+  const { data } = await client.post<{
+    job_id: string
+    name: string
+    tracks: { id: string; title: string }[]
+  }>('/download/song', { ...song, quality, lyrics })
+  return data
+}
+
+export type PlaylistFormat = 'json' | 'm3u8'
+
+/** Writes the export into the music folder's Playlists/ and answers with
+ *  where it landed, for the shell to reveal. */
+export async function exportPlaylist(
+  id: string,
+  format: PlaylistFormat,
+): Promise<{ path: string; dir: string; filename: string }> {
+  const { data } = await client.post<{ path: string; dir: string; filename: string }>(
+    `/playlists/${id}/export`,
+    { format },
+  )
+  return data
+}
+
+export async function importPlaylist(text: string, filename: string): Promise<Playlist> {
+  const { data } = await client.post<Playlist>('/playlists/import', { text, filename })
+  return data
+}
+
+/** Full-length playback of a song that isn't on disk, relayed by the backend
+ *  — see backend/app/stream.py. Keyed by metadata, so any row can play. */
+export function streamUrl(song: {
+  title: string
+  artists: string[]
+  album?: string
+  duration_ms?: number
+  source_url?: string | null
+}): string {
+  const params = new URLSearchParams({ title: song.title })
+  if (song.artists.length > 0) params.set('artist', song.artists.join(', '))
+  if (song.album) params.set('album', song.album)
+  if (song.duration_ms) params.set('duration_ms', String(song.duration_ms))
+  if (song.source_url) params.set('source_url', song.source_url)
+  return `/api/stream?${params.toString()}`
+}
+
+/** A song autoplay could queue next: catalog metadata, plus the library file
+ *  when it is already on disk. */
+export interface Recommendation {
+  id: string
+  title: string
+  artists: string[]
+  album: string
+  duration_ms: number
+  cover_url: string | null
+  source_url: string | null
+  file_id: string | null
+}
+
+/** Songs like this one, for autoplay — see backend/app/recommend.py. */
+export async function getRecommendations(
+  title: string,
+  artist: string,
+  signal?: AbortSignal,
+): Promise<Recommendation[]> {
+  const { data } = await client.get<{ tracks: Recommendation[] }>('/recommend', {
+    params: { title, artist },
+    signal,
+  })
+  return data.tracks
 }

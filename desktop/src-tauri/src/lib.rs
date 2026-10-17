@@ -368,6 +368,15 @@ fn spawn_backend(
                 .to_str()
                 .unwrap_or_default(),
         )
+        // Playlists are the person's own work, so they live with the app's
+        // data rather than in the webview's storage — see app/playlists.py.
+        .env(
+            "PLAYLISTS_PATH",
+            app_data_dir
+                .join("playlists.json")
+                .to_str()
+                .unwrap_or_default(),
+        )
         .env(
             "ANALYTICS_DB_PATH",
             app_data_dir

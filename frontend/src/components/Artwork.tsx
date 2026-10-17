@@ -41,7 +41,7 @@ export function Artwork({
     <span
       className={clsx(
         'relative grid shrink-0 place-items-center overflow-hidden ring-1 transition',
-        showImage ? 'bg-black/40 ring-white/[0.08]' : 'bg-white/[0.05] ring-white/[0.06]',
+        showImage ? 'bg-black/40 ring-fg/[0.08]' : 'bg-fg/[0.05] ring-fg/[0.06]',
         rounded,
         className,
       )}
@@ -74,6 +74,53 @@ export function PlayingBars({ className }: { className?: string }) {
           key={i}
           className="w-[3px] origin-bottom animate-eq rounded-full bg-lime-flash"
           style={{ height: `${[10, 16, 12][i]}px`, animationDelay: `${i * 0.18}s` }}
+        />
+      ))}
+    </span>
+  )
+}
+
+/** A playlist's art: its first four covers as a 2×2 grid, the first alone
+ *  when it has fewer, the glyph when it has none. */
+export function PlaylistCover({
+  covers,
+  className,
+  rounded = 'rounded-[10px]',
+  iconClassName,
+}: {
+  covers: string[]
+  className?: string
+  rounded?: string
+  iconClassName?: string
+}) {
+  if (covers.length < 4) {
+    return (
+      <Artwork
+        src={covers[0]}
+        hasCover={covers.length > 0}
+        className={className}
+        rounded={rounded}
+        iconClassName={iconClassName}
+      />
+    )
+  }
+  return (
+    <span
+      className={clsx(
+        'grid shrink-0 grid-cols-2 grid-rows-2 overflow-hidden bg-black/40 ring-1 ring-fg/[0.08]',
+        rounded,
+        className,
+      )}
+    >
+      {covers.slice(0, 4).map((src) => (
+        <img
+          key={src}
+          src={src}
+          alt=""
+          loading="lazy"
+          decoding="async"
+          draggable={false}
+          className="size-full object-cover"
         />
       ))}
     </span>

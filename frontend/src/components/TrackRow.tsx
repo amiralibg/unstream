@@ -1,4 +1,4 @@
-import type { CSSProperties } from 'react'
+import type { CSSProperties, ReactNode } from 'react'
 import { Captions, Check, Download, LoaderCircle, Pause, Play, TriangleAlert } from 'lucide-react'
 import clsx from 'clsx'
 import { trackFileUrl, type JobTrack, type Track } from '../lib/api'
@@ -23,6 +23,14 @@ interface Props {
   onLyrics?: () => void
   /** Carries the `--i` stagger index from the parent list. */
   style?: CSSProperties
+  /** Full-length playback, where there is a player (the desktop). Replaces
+   *  the 30-second preview: a person who can hear the whole song has no use
+   *  for a clip of it. */
+  onPlay?: () => void
+  /** This row's song in the player: the one loaded, and whether it's sounding. */
+  playback?: { active: boolean; playing: boolean; loading: boolean }
+  /** Extra per-row actions — the desktop's queue and playlist menu. */
+  menu?: ReactNode
 }
 
 function formatDuration(ms: number, num: (v: number | string) => string): string {
@@ -56,6 +64,9 @@ export function TrackRow({
   onToggleSelect,
   onLyrics,
   style,
+  onPlay,
+  playback,
+  menu,
 }: Props) {
   const m = useMessages()
   const startAlign = useStartAlign()
@@ -68,8 +79,11 @@ export function TrackRow({
 
   const playingId = usePlayingPreviewId()
   const previewLoading = usePreviewLoading()
-  const isPlaying = playingId === track.id && !previewLoading
-  const isCurrentPreview = playingId === track.id
+  const isPlaying = onPlay
+    ? Boolean(playback?.active && playback.playing)
+    : playingId === track.id && !previewLoading
+  const isCurrentPreview = onPlay ? Boolean(playback?.active) : playingId === track.id
+  const isLoading = onPlay ? Boolean(playback?.active && playback.loading) : previewLoading
 
   return (
     <li style={style} className="group relative border-b border-ink-800 last:border-b-0">
@@ -141,14 +155,24 @@ export function TrackRow({
             </button>
           )}
 
-          {track.preview_url && (
+          {menu}
+
+          {(onPlay || track.preview_url) && (
             <button
-              onClick={() => togglePreview(track.id, track.preview_url!)}
-              title={isCurrentPreview ? m.track.previewStop : m.track.previewPlay}
+              onClick={() => (onPlay ? onPlay() : togglePreview(track.id, track.preview_url!))}
+              title={
+                onPlay
+                  ? m.player.playFull
+                  : isCurrentPreview
+                    ? m.track.previewStop
+                    : m.track.previewPlay
+              }
               aria-label={
-                isCurrentPreview
-                  ? m.track.previewStopFor(track.title)
-                  : m.track.previewPlayFor(track.title)
+                onPlay
+                  ? m.player.playFullFor(track.title)
+                  : isCurrentPreview
+                    ? m.track.previewStopFor(track.title)
+                    : m.track.previewPlayFor(track.title)
               }
               className={clsx(
                 'tap-target grid size-8 shrink-0 place-items-center rounded-ctl border transition duration-200 active:scale-90',
@@ -157,7 +181,7 @@ export function TrackRow({
                   : 'border-ink-700 text-ink-400 hover:border-lime-flash/50 hover:text-lime-flash',
               )}
             >
-              {isCurrentPreview && previewLoading ? (
+              {isCurrentPreview && isLoading ? (
                 <LoaderCircle className="size-3.5 animate-spin" />
               ) : isPlaying ? (
                 <Pause className="size-3.5" />

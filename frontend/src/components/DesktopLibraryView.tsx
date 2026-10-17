@@ -18,6 +18,7 @@ import {
   getLibrary,
   libraryCoverUrl,
   libraryFileUrl,
+  libraryInput,
   type LibraryTrack,
 } from '../lib/api'
 import { faNumerals, useMessages } from '../lib/i18n'
@@ -25,6 +26,7 @@ import type { Messages } from '../lib/locales/en'
 import { usePlayer, type QueueItem } from '../lib/player'
 import { useVirtualRows } from '../lib/virtual'
 import { Artwork, PlayingBars } from './Artwork'
+import { SongMenu } from './SongMenu'
 
 export function toQueueItem(track: LibraryTrack): QueueItem {
   return {
@@ -36,6 +38,7 @@ export function toQueueItem(track: LibraryTrack): QueueItem {
     url: libraryFileUrl(track.id),
     coverUrl: track.has_cover ? libraryCoverUrl(track.id) : undefined,
     hasCover: track.has_cover,
+    song: libraryInput(track),
   }
 }
 
@@ -111,7 +114,7 @@ export function DesktopLibraryView() {
   return (
     <div className="flex h-full min-w-0 flex-col overflow-hidden bg-ink-950">
       {/* Library Header */}
-      <header className="shrink-0 border-b border-white/[0.06] bg-ink-950/90 px-6 sm:px-8 py-5 backdrop-blur-xl">
+      <header className="shrink-0 border-b border-fg/[0.06] bg-ink-950/90 px-6 sm:px-8 py-5 backdrop-blur-xl">
         <div className="mx-auto flex max-w-5xl items-end justify-between gap-4 flex-wrap">
           <div className="min-w-0">
             <div className="flex items-center gap-2.5">
@@ -146,7 +149,7 @@ export function DesktopLibraryView() {
                   onClick={shuffleAll}
                   title={m.player.shuffleAll}
                   aria-label={m.player.shuffleAll}
-                  className="grid size-9 place-items-center rounded-ctl border border-white/[0.08] bg-white/[0.03] text-ink-300 transition hover:border-lime-flash/40 hover:text-lime-flash active:scale-95"
+                  className="grid size-9 place-items-center rounded-ctl border border-fg/[0.08] bg-fg/[0.03] text-ink-300 transition hover:border-lime-flash/40 hover:text-lime-flash active:scale-95"
                 >
                   <Shuffle className="size-3.5" />
                 </button>
@@ -154,7 +157,7 @@ export function DesktopLibraryView() {
             )}
 
             {/* Quick Search */}
-            <div className="relative flex h-9 items-center rounded-ctl border border-white/[0.08] bg-black/30 px-2.5 text-ink-400 focus-within:border-lime-flash/50 focus-within:text-ink-100">
+            <div className="relative flex h-9 items-center rounded-ctl border border-fg/[0.08] bg-well/30 px-2.5 text-ink-400 focus-within:border-lime-flash/50 focus-within:text-ink-100">
               <Search className="size-3.5 shrink-0 text-ink-500" />
               <input
                 value={filter}
@@ -180,7 +183,7 @@ export function DesktopLibraryView() {
               onClick={() => void refetch()}
               title={m.player.refresh}
               aria-label={m.player.refresh}
-              className="grid size-9 place-items-center rounded-ctl border border-white/[0.08] bg-white/[0.03] text-ink-400 transition hover:border-white/[0.15] hover:text-ink-100 active:scale-95"
+              className="grid size-9 place-items-center rounded-ctl border border-fg/[0.08] bg-fg/[0.03] text-ink-400 transition hover:border-fg/[0.15] hover:text-ink-100 active:scale-95"
             >
               <RefreshCw className={clsx('size-3.5', isFetching && 'animate-spin')} />
             </button>
@@ -202,7 +205,7 @@ export function DesktopLibraryView() {
                     'rounded-full px-3 py-1 text-micro font-semibold transition',
                     sort === option.id
                       ? 'bg-lime-flash/20 text-lime-flash border border-lime-flash/30'
-                      : 'text-ink-400 hover:bg-white/[0.05] hover:text-ink-200 border border-transparent',
+                      : 'text-ink-400 hover:bg-fg/[0.05] hover:text-ink-200 border border-transparent',
                   )}
                 >
                   {option.label}
@@ -225,7 +228,7 @@ export function DesktopLibraryView() {
               {Array.from({ length: 8 }, (_, i) => (
                 <li
                   key={i}
-                  className="shimmer h-[68px] rounded-panel border border-white/[0.04]"
+                  className="shimmer h-[68px] rounded-panel border border-fg/[0.04]"
                   style={{ animationDelay: `${i * 90}ms` }}
                 />
               ))}
@@ -249,7 +252,7 @@ export function DesktopLibraryView() {
             </div>
           ) : visible.length === 0 ? (
             <div className="flex min-h-[24rem] flex-col items-center justify-center text-center p-8">
-              <div className="grid size-14 place-items-center rounded-2xl border border-white/[0.08] bg-white/[0.03] text-ink-400 mb-4 shadow-xl">
+              <div className="grid size-14 place-items-center rounded-2xl border border-fg/[0.08] bg-fg/[0.03] text-ink-400 mb-4 shadow-xl">
                 <ListMusic className="size-6" strokeWidth={1.75} />
               </div>
               <h2 className="font-display text-base font-bold text-ink-100">
@@ -271,16 +274,20 @@ export function DesktopLibraryView() {
                   const at = rows.start + i
                   const active = current?.id === track.id
                   return (
-                    <li key={track.id} style={{ height: ROW_HEIGHT - 6 }}>
+                    <li
+                      key={track.id}
+                      style={{ height: ROW_HEIGHT - 6 }}
+                      className={clsx(
+                        'group flex items-center gap-2 rounded-panel border pe-3 transition',
+                        active
+                          ? 'border-lime-flash/30 bg-lime-flash/[0.07] shadow-md shadow-shade/40'
+                          : 'border-fg/[0.06] bg-ink-900/60 hover:border-fg/[0.12] hover:bg-ink-900/90',
+                      )}
+                    >
                       <button
                         type="button"
                         onClick={() => (active ? toggle() : playAt(at))}
-                        className={clsx(
-                          'group flex h-full w-full items-center gap-4 rounded-panel border p-3 text-start transition active:scale-[0.995]',
-                          active
-                            ? 'border-lime-flash/30 bg-lime-flash/[0.07] shadow-md shadow-black/40'
-                            : 'border-white/[0.06] bg-ink-900/60 hover:border-white/[0.12] hover:bg-ink-900/90',
-                        )}
+                        className="flex h-full min-w-0 flex-1 items-center gap-4 p-3 pe-1 text-start transition active:scale-[0.995]"
                       >
                         {/* Artwork */}
                         <Artwork
@@ -344,7 +351,7 @@ export function DesktopLibraryView() {
                             'grid size-8 shrink-0 place-items-center rounded-full transition shadow-sm',
                             active
                               ? 'bg-lime-flash text-lime-ink'
-                              : 'bg-white/[0.06] text-ink-300 group-hover:bg-lime-flash group-hover:text-lime-ink',
+                              : 'bg-fg/[0.06] text-ink-300 group-hover:bg-lime-flash group-hover:text-lime-ink',
                           )}
                         >
                           {active && playing ? (
@@ -354,6 +361,12 @@ export function DesktopLibraryView() {
                           )}
                         </span>
                       </button>
+                      <SongMenu
+                        songs={() => [libraryInput(track)]}
+                        items={() => [toQueueItem(track)]}
+                        label={m.player.more}
+                        className="grid size-8 shrink-0 place-items-center rounded-full text-ink-500 opacity-60 transition hover:bg-fg/[0.06] hover:text-lime-flash group-hover:opacity-100 active:scale-90"
+                      />
                     </li>
                   )
                 })}

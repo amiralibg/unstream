@@ -33,7 +33,7 @@ from mutagen.mp4 import MP4, MP4Cover
 from yt_dlp import YoutubeDL
 from yt_dlp.utils import DownloadCancelled
 
-from . import analytics, lyrics
+from . import analytics, lyrics, ytdlp
 from .models import Track
 from .ytdlp import base_opts, bot_check_message
 
@@ -277,8 +277,7 @@ def download_audio(
         ]
 
     try:
-        with YoutubeDL(opts) as ydl:
-            ydl.download([url])
+        ytdlp.run(opts, lambda ydl: ydl.download([url]))
     except DownloadCancelled as exc:
         raise Cancelled() from exc
     # A postprocessor runs after the last progress hook fires, so the encode

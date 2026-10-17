@@ -111,7 +111,7 @@ export function Sheet({
           tabIndex={-1}
           style={{ transform: drag ? `translateY(${drag}px)` : undefined }}
           className={clsx(
-            'pointer-events-auto flex max-h-[85svh] w-full flex-col overflow-hidden bg-ink-900 shadow-2xl shadow-black/60 outline-none',
+            'pointer-events-auto flex max-h-[85svh] w-full flex-col overflow-hidden bg-ink-900 shadow-2xl shadow-shade/60 outline-none',
             // mobile: bottom sheet, sliding up from its own edge.
             'rounded-t-panel border-t border-ink-700 pb-[var(--safe-bottom)]',
             // desktop: a centered modal that fades in instead.

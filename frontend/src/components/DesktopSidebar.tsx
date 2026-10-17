@@ -3,6 +3,7 @@ import {
   ArrowDownToLine,
   AudioLines,
   FolderOpen,
+  Library,
   ListMusic,
   LoaderCircle,
   Pause,
@@ -22,18 +23,29 @@ import {
 import { useDownloads } from '../lib/downloads'
 import { useMessages } from '../lib/i18n'
 import { usePlayer } from '../lib/player'
-import { Artwork, PlayingBars } from './Artwork'
+import { usePlaylists } from '../lib/playlists'
+import { Artwork, PlayingBars, PlaylistCover } from './Artwork'
 
-export type DesktopTab = 'search' | 'downloads' | 'library' | 'settings'
+export type DesktopTab = 'search' | 'downloads' | 'library' | 'playlists' | 'settings'
 
 interface DesktopSidebarProps {
   activeTab: DesktopTab
   onSelectTab: (tab: DesktopTab) => void
   onOpenKaraoke?: () => void
+  /** The playlist open in the Playlists tab, highlighted in the list here. */
+  activePlaylist?: string | null
+  onOpenPlaylist?: (id: string) => void
 }
 
-export function DesktopSidebar({ activeTab, onSelectTab, onOpenKaraoke }: DesktopSidebarProps) {
+export function DesktopSidebar({
+  activeTab,
+  onSelectTab,
+  onOpenKaraoke,
+  activePlaylist,
+  onOpenPlaylist,
+}: DesktopSidebarProps) {
   const m = useMessages()
+  const { data: playlists } = usePlaylists()
   const { activeCount, entries } = useDownloads()
   const { current, playing, toggle } = usePlayer()
   const [downloadsDir, setDownloadsDir] = useState<string>('')
@@ -76,27 +88,33 @@ export function DesktopSidebar({ activeTab, onSelectTab, onOpenKaraoke }: Deskto
     {
       id: 'library',
       label: m.desktopNav.library,
-      icon: ListMusic,
+      icon: Library,
       shortcut: isMac ? '⌘3' : 'Alt+3',
+    },
+    {
+      id: 'playlists',
+      label: m.desktopNav.playlists,
+      icon: ListMusic,
+      shortcut: isMac ? '⌘4' : 'Alt+4',
     },
     {
       id: 'settings',
       label: m.desktopNav.settings,
       icon: Settings,
-      shortcut: isMac ? '⌘4' : 'Alt+4',
+      shortcut: isMac ? '⌘5' : 'Alt+5',
     },
   ] as const
 
   return (
     <aside
-      className="flex h-full w-[14.5rem] shrink-0 select-none flex-col border-e border-white/[0.06] bg-[#0c0e0b]/95 text-ink-300 backdrop-blur-xl"
+      className="flex h-full w-[14.5rem] shrink-0 select-none flex-col border-e border-fg/[0.06] bg-shell/95 text-ink-300 backdrop-blur-xl"
       data-no-drag
     >
       {/* Brand & App Title */}
       <button
         type="button"
         onClick={() => onSelectTab('search')}
-        className="group flex h-14 shrink-0 items-center gap-3 border-b border-white/[0.06] px-4 text-start transition hover:bg-white/[0.02]"
+        className="group flex h-14 shrink-0 items-center gap-3 border-b border-fg/[0.06] px-4 text-start transition hover:bg-fg/[0.02]"
       >
         <span className="relative grid size-9 shrink-0 place-items-center rounded-xl bg-lime-flash text-lime-ink shadow-md shadow-lime-flash/20 transition duration-200 group-active:scale-95">
           <AudioLines className="size-4.5" strokeWidth={2.4} />
@@ -117,7 +135,7 @@ export function DesktopSidebar({ activeTab, onSelectTab, onOpenKaraoke }: Deskto
       </button>
 
       {/* Main Navigation */}
-      <nav className="flex-1 space-y-1 px-2.5 py-3" aria-label={m.desktopNav.navigationLabel}>
+      <nav className="shrink-0 space-y-1 px-2.5 py-3" aria-label={m.desktopNav.navigationLabel}>
         {navItems.map(({ id, label, icon: Icon, shortcut }) => {
           const active = activeTab === id
           return (
@@ -129,8 +147,8 @@ export function DesktopSidebar({ activeTab, onSelectTab, onOpenKaraoke }: Deskto
               className={clsx(
                 'group relative flex h-10 w-full items-center gap-2.5 rounded-ctl px-3 text-xs font-semibold transition duration-150 active:scale-[0.985]',
                 active
-                  ? 'bg-lime-flash/[0.09] text-ink-100 border border-lime-flash/25 shadow-sm shadow-black/40'
-                  : 'text-ink-400 hover:bg-white/[0.045] hover:text-ink-100 border border-transparent',
+                  ? 'bg-lime-flash/[0.09] text-ink-100 border border-lime-flash/25 shadow-sm shadow-shade/40'
+                  : 'text-ink-400 hover:bg-fg/[0.045] hover:text-ink-100 border border-transparent',
               )}
             >
               {active && (
@@ -152,7 +170,7 @@ export function DesktopSidebar({ activeTab, onSelectTab, onOpenKaraoke }: Deskto
                   <span className="tabular-nums">{m.app.num(activeCount)}</span>
                 </span>
               ) : id === 'downloads' && entries.length > 0 ? (
-                <span className="min-w-5 rounded-full bg-white/[0.07] px-1.5 py-0.5 text-center text-[10px] font-medium text-ink-400 tabular-nums">
+                <span className="min-w-5 rounded-full bg-fg/[0.07] px-1.5 py-0.5 text-center text-[10px] font-medium text-ink-400 tabular-nums">
                   {m.app.num(entries.length)}
                 </span>
               ) : (
@@ -165,9 +183,47 @@ export function DesktopSidebar({ activeTab, onSelectTab, onOpenKaraoke }: Deskto
         })}
       </nav>
 
+      {/* The person's playlists, one click from anywhere */}
+      <div className="min-h-0 flex-1 overflow-y-auto px-2.5 pb-2">
+        {playlists && playlists.length > 0 && (
+          <>
+            <p className="px-3 pb-1.5 pt-1 text-[10px] font-semibold text-ink-500">
+              {m.desktopNav.playlists}
+            </p>
+            {playlists.map((playlist) => {
+              const active = activeTab === 'playlists' && activePlaylist === playlist.id
+              return (
+                <button
+                  key={playlist.id}
+                  type="button"
+                  onClick={() => onOpenPlaylist?.(playlist.id)}
+                  aria-label={m.playlists.open(playlist.name)}
+                  className={clsx(
+                    'flex h-9 w-full items-center gap-2.5 rounded-ctl px-2 text-start transition',
+                    active
+                      ? 'bg-fg/[0.06] text-ink-100'
+                      : 'text-ink-400 hover:bg-fg/[0.04] hover:text-ink-100',
+                  )}
+                >
+                  <PlaylistCover
+                    covers={playlist.covers}
+                    className="size-6"
+                    rounded="rounded-md"
+                    iconClassName="size-3"
+                  />
+                  <span className="min-w-0 flex-1 truncate text-[12px] font-medium" dir="auto">
+                    {playlist.name}
+                  </span>
+                </button>
+              )
+            })}
+          </>
+        )}
+      </div>
+
       {/* Now Playing Mini-Player in Sidebar (if active) */}
       {current && (
-        <div className="mx-2.5 mb-2 rounded-panel border border-white/[0.08] bg-white/[0.035] p-2.5 shadow-lg backdrop-blur-md">
+        <div className="mx-2.5 mb-2 rounded-panel border border-fg/[0.08] bg-fg/[0.035] p-2.5 shadow-lg backdrop-blur-md">
           <div className="flex items-center gap-2.5">
             <button
               type="button"
@@ -219,13 +275,13 @@ export function DesktopSidebar({ activeTab, onSelectTab, onOpenKaraoke }: Deskto
       )}
 
       {/* Downloads Directory */}
-      <div className="border-t border-white/[0.06] p-3 space-y-2 bg-black/20">
+      <div className="border-t border-fg/[0.06] p-3 space-y-2 bg-well/20">
         <div className="flex items-center justify-between px-1 text-[10px] font-semibold text-ink-400">
           <span>{m.settings.downloadsFolder}</span>
           <button
             type="button"
             onClick={handlePickFolder}
-            className="rounded px-1.5 py-0.5 transition hover:bg-white/[0.08] hover:text-lime-flash"
+            className="rounded px-1.5 py-0.5 transition hover:bg-fg/[0.08] hover:text-lime-flash"
           >
             {m.settings.changeFolder}
           </button>
@@ -236,7 +292,7 @@ export function DesktopSidebar({ activeTab, onSelectTab, onOpenKaraoke }: Deskto
           onClick={handleOpenFolder}
           title={m.settings.openInFinder}
           dir="ltr"
-          className="group flex h-8.5 w-full items-center gap-2 rounded-ctl border border-white/[0.07] bg-white/[0.03] px-2.5 text-start transition hover:border-lime-flash/30 hover:bg-white/[0.06] active:scale-[0.985]"
+          className="group flex h-8.5 w-full items-center gap-2 rounded-ctl border border-fg/[0.07] bg-fg/[0.03] px-2.5 text-start transition hover:border-lime-flash/30 hover:bg-fg/[0.06] active:scale-[0.985]"
         >
           <FolderOpen className="size-3.5 shrink-0 text-ink-400 transition group-hover:text-lime-flash" />
           <span className="min-w-0 flex-1 truncate font-mono text-[10px] text-ink-400 group-hover:text-ink-200">
