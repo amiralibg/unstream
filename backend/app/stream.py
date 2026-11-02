@@ -26,7 +26,7 @@ its catalogue as HLS, a playlist of segments a relay cannot pass through as
 one URL. Those are fetched whole into a small cache first (a song is a few
 MB, and yt-dlp joins the segments) and served from there, ranges included.
 
-Desktop only, like playlists, unless `UNSTREAM_STREAMING` says otherwise: on
+Desktop only, with no setting to turn it on anywhere else: on
 a server the bytes would cross its bandwidth for every listener, and
 YouTube refuses datacenter addresses before any of this gets a turn.
 """
@@ -84,11 +84,6 @@ _MEDIA_TYPES = {
 
 
 def enabled() -> bool:
-    raw = os.getenv("UNSTREAM_STREAMING", "").lower()
-    if raw in ("1", "true", "yes"):
-        return True
-    if raw in ("0", "false", "no"):
-        return False
     return os.getenv("UNSTREAM_DESKTOP", "").lower() in ("1", "true", "yes")
 
 
