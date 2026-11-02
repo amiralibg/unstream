@@ -1052,6 +1052,8 @@ def recommend_tracks(
 ) -> dict:
     """Songs like this one, for autoplay to queue when the queue runs out.
     Each carries `file_id` when it is already in the library."""
+    if not stream.enabled():
+        raise HTTPException(status_code=404, detail="Streaming is not enabled here")
     if not title.strip() and not artist.strip():
         raise HTTPException(status_code=400, detail="Nothing to suggest from")
     limits.enforce("resolve", request)

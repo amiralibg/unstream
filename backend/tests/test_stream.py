@@ -13,7 +13,7 @@ from app.models import Track
 
 @pytest.fixture(autouse=True)
 def _clean(monkeypatch):
-    monkeypatch.setenv("UNSTREAM_STREAMING", "1")
+    monkeypatch.setenv("UNSTREAM_DESKTOP", "1")
     stream._cache.clear()
     stream._key_locks.clear()
 
@@ -127,9 +127,13 @@ def test_endpoint_reports_a_song_it_cannot_find(monkeypatch):
     assert res.status_code == 502
 
 
-def test_endpoint_is_off_on_a_server(monkeypatch):
-    monkeypatch.setenv("UNSTREAM_STREAMING", "0")
-    assert TestClient(main.app).get("/api/stream", params={"title": "x"}).status_code == 404
+def test_endpoint_is_off_on_a_server_even_if_asked_for(monkeypatch):
+    monkeypatch.delenv("UNSTREAM_DESKTOP", raising=False)
+    monkeypatch.setenv("UNSTREAM_STREAMING", "1")
+    client = TestClient(main.app)
+    assert client.get("/api/stream", params={"title": "x"}).status_code == 404
+    assert client.head("/api/stream", params={"title": "x"}).status_code == 404
+    assert client.get("/api/recommend", params={"title": "x"}).status_code == 404
 
 
 def test_find_falls_through_sources(monkeypatch):

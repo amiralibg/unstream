@@ -19,6 +19,7 @@ def _item(i, title, artist, artist_id=1):
 
 @pytest.fixture
 def api(monkeypatch, tmp_path):
+    monkeypatch.setenv("UNSTREAM_DESKTOP", "1")
     monkeypatch.setattr(jobs, "DOWNLOADS_DIR", tmp_path)
     calls = []
     responses = {}
