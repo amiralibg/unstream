@@ -122,10 +122,10 @@ function LyricRoll({ lines, onSeek }: { lines: LyricLine[]; onSeek: (t: number) 
                 onSeek(line.t)
               }}
               className={clsx(
-                'w-full rounded-2xl px-4 py-2 text-center font-display leading-relaxed transition-all duration-300 hover:bg-white/[0.04]',
+                'w-full rounded-2xl px-4 py-2 text-center font-display leading-relaxed transition-all duration-300 hover:bg-fg/[0.04]',
                 faNumerals(line.text),
                 isActive
-                  ? 'scale-[1.04] text-[26px] font-bold text-lime-flash [text-shadow:0_0_28px_rgba(200,242,79,0.35)]'
+                  ? 'scale-[1.04] text-[26px] font-bold text-lime-flash [text-shadow:0_0_28px_color-mix(in_oklab,var(--color-lime-flash)_35%,transparent)]'
                   : isPast
                     ? 'text-lg font-medium text-ink-500'
                     : 'text-xl font-semibold text-ink-300/70',
@@ -172,7 +172,8 @@ export function KaraokeView({ onClose }: { onClose: () => void }) {
     queryFn: async (): Promise<Lyrics> => {
       const force = retrying.current
       retrying.current = false
-      const onDisk = force ? null : await getLibraryLyrics(current!.id)
+      // A streamed song has no file to read; it goes straight to the network.
+      const onDisk = force || current!.online ? null : await getLibraryLyrics(current!.id)
       // Timings are what make this karaoke rather than a page of text, so
       // the ranking is synced-anywhere first, not on-disk first. A file
       // carrying a synced .lrc wins outright and needs no network; a file
@@ -240,7 +241,7 @@ export function KaraokeView({ onClose }: { onClose: () => void }) {
   const offline = data?.source === 'file'
 
   return (
-    <div className="fixed inset-0 z-50 flex flex-col bg-[#0a0c09] animate-fade-up">
+    <div className="fixed inset-0 z-50 flex flex-col bg-shell animate-fade-up">
       {/* The album cover, blown up and blurred behind the words — the room
           the song is playing in, rather than a flat panel. */}
       {current.coverUrl && (
@@ -250,7 +251,7 @@ export function KaraokeView({ onClose }: { onClose: () => void }) {
             alt=""
             className="size-full scale-125 object-cover opacity-25 blur-[64px]"
           />
-          <div className="absolute inset-0 bg-gradient-to-b from-[#0a0c09]/70 via-[#0a0c09]/85 to-[#0a0c09]" />
+          <div className="absolute inset-0 bg-gradient-to-b from-shell/70 via-shell/85 to-shell" />
         </div>
       )}
 
@@ -267,7 +268,7 @@ export function KaraokeView({ onClose }: { onClose: () => void }) {
             type="button"
             onClick={onClose}
             aria-label={m.player.close}
-            className="grid size-9 shrink-0 place-items-center rounded-full border border-white/10 bg-white/[0.04] text-ink-300 transition hover:bg-white/[0.08] hover:text-ink-100 active:scale-90"
+            className="grid size-9 shrink-0 place-items-center rounded-full border border-fg/10 bg-fg/[0.04] text-ink-300 transition hover:bg-fg/[0.08] hover:text-ink-100 active:scale-90"
           >
             <ChevronDown className="size-4.5" />
           </button>
@@ -404,7 +405,7 @@ function Transport({
   const progress = max > 0 ? Math.min(1, time / max) : 0
 
   return (
-    <footer className="shrink-0 border-t border-white/[0.06] bg-black/25 px-6 py-4 backdrop-blur-xl">
+    <footer className="shrink-0 border-t border-fg/[0.06] bg-well/25 px-6 py-4 backdrop-blur-xl">
       <div dir="ltr" className="mx-auto flex max-w-xl flex-col gap-3">
         <input
           type="range"
@@ -417,7 +418,7 @@ function Transport({
           dir="ltr"
           className="h-1 w-full cursor-pointer appearance-none rounded-full"
           style={{
-            background: `linear-gradient(to right, #c8f24f ${progress * 100}%, rgba(255,255,255,0.12) ${progress * 100}%)`,
+            background: `linear-gradient(to right, var(--color-lime-flash) ${progress * 100}%, color-mix(in oklab, var(--color-fg) 12%, transparent) ${progress * 100}%)`,
           }}
         />
         <div dir="ltr" className="flex items-center justify-center gap-4">
@@ -425,7 +426,7 @@ function Transport({
             type="button"
             onClick={onPrev}
             aria-label={m.player.previous}
-            className="grid size-9 place-items-center rounded-full text-ink-400 transition hover:bg-white/[0.07] hover:text-ink-100 active:scale-90"
+            className="grid size-9 place-items-center rounded-full text-ink-400 transition hover:bg-fg/[0.07] hover:text-ink-100 active:scale-90"
           >
             <SkipBack className="size-4.5" />
           </button>
@@ -433,7 +434,7 @@ function Transport({
             type="button"
             onClick={onToggle}
             aria-label={playing ? m.player.pause : m.player.play}
-            className="grid size-11 place-items-center rounded-full bg-lime-flash text-lime-ink shadow-[0_6px_22px_rgba(200,242,79,0.28)] transition hover:bg-lime-soft active:scale-90"
+            className="grid size-11 place-items-center rounded-full bg-lime-flash text-lime-ink shadow-[0_6px_22px_color-mix(in_oklab,var(--color-lime-flash)_28%,transparent)] transition hover:bg-lime-soft active:scale-90"
           >
             {playing ? <Pause className="size-5" /> : <Play className="size-5 translate-x-[1px]" />}
           </button>
@@ -441,7 +442,7 @@ function Transport({
             type="button"
             onClick={onNext}
             aria-label={m.player.next}
-            className="grid size-9 place-items-center rounded-full text-ink-400 transition hover:bg-white/[0.07] hover:text-ink-100 active:scale-90"
+            className="grid size-9 place-items-center rounded-full text-ink-400 transition hover:bg-fg/[0.07] hover:text-ink-100 active:scale-90"
           >
             <SkipForward className="size-4.5" />
           </button>
@@ -454,7 +455,7 @@ function Transport({
                 {m.player.lyricsOnDisk}
               </>
             ) : (
-              <span className="rounded-md border border-white/10 px-1.5 py-0.5 font-semibold uppercase tracking-wider">
+              <span className="rounded-md border border-fg/10 px-1.5 py-0.5 font-semibold uppercase tracking-wider">
                 {source}
               </span>
             )}

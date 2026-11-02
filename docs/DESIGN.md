@@ -4,6 +4,7 @@ The decisions in here are load-bearing: things that look like mistakes until you
 
 - [The shape of it](#the-shape-of-it)
 - [Farsi first, with a language layer](#farsi-only)
+- [Colour: two palettes, two modes](#colour)
 - [One self-hosted typeface per script](#typeface)
 - [Which digits a number gets](#digits)
 - [Analytics, recorded server-side](#analytics)
@@ -91,6 +92,22 @@ Browser cookies are read once and checked before yt-dlp is handed the browser. y
 
 Failures carry an `error_kind` (`net.error_kind()`), so the UI can say which of these went wrong in the person's language and point at the setting that fixes it. The raw message stays in `error` for anyone debugging.
 
+### Playlists, streaming and the queue
+
+The desktop player started as a way to hear the library. It is now a music player in its own right: songs that are not on disk play in full online, the queue can be read and rearranged, and people keep playlists of their own that travel between machines. Three decisions hold that together.
+
+**A playlist entry is a song, not a file.** Each row stores catalog metadata — title, artists, album, length, the upload it came from — and, when there is one, the file's path relative to the music folder. It never stores a library id: those are hashes of a path on _this_ machine, and a playlist made of them would mean nothing anywhere else. Which rows are on disk is worked out on every read, by matching against the library scan (path first, then title + lead artist, then title + length), so a song downloaded, renamed or copied in from elsewhere becomes "on disk" without the playlist being told. The same metadata is what "Download all" hands the downloader: a playlist's job fetches exactly the rows that matched nothing, and its track ids are the rows' own ids, so progress lands on the right row.
+
+**Playlists live in a file, not in the webview.** `localStorage` is partitioned by origin, and the desktop's origin includes a port that is re-rolled whenever something else holds it — the bug that once made the app forget its language. That is a click to restore; an evening spent on a playlist is not. `PLAYLISTS_PATH` puts them beside `lyrics.db`, written atomically, and a file that cannot be parsed is left alone rather than overwritten. Exports go into the music folder's `Playlists/` — the app's own folder, so no path ever comes in from a request — as `.unstream.json` (lossless, what import reads) or `.m3u8` (for every other player). Import reads the file in the webview and posts its text, for the same reason. Catalog preview URLs are not kept: they are signed with an expiry and would be dead in a playlist by the next day.
+
+**A stream is relayed, in bounded chunks.** `/api/stream` takes a song's metadata, picks an upload the same way the downloader does, and relays the audio through the backend. Handing the webview the media URL would skip the connection setting above — the webview does not follow it — and YouTube's URLs only work with the headers they were issued with. Upstream ranges are capped at a few megabytes, because googlevideo throttles or cuts an open-ended request; the browser takes a short 206 and asks for the next piece. Formats are restricted to progressive m4a/mp3 first, since HLS cannot be relayed as one URL and Opus-in-WebM is unreliable on WebKit. Resolution costs seconds, so it is cached per song until shortly before the URL's own `expire`, and the player sends a `HEAD` for the next streamed song while the current one plays.
+
+Both are **desktop-only** unless `UNSTREAM_PLAYLISTS` / `UNSTREAM_STREAMING` say otherwise. One playlists file per process would be shared by every visitor of a hosted instance, and a stream relayed by a server costs its bandwidth for every listener — on an address YouTube refuses anyway.
+
+**Autoplay** keeps going when the queue runs out, the way a streaming app does. When one song is left, the player asks `/api/recommend` for songs like the one playing and appends ten it hasn't queued or played this session, marked `auto`. They are seeded by whatever is current, so a long session drifts like a radio instead of circling one artist. The source is Deezer, the only keyless catalog with a notion of "similar": the artist's public radio, topped up from related artists, then the artist's own top tracks. Many Persian artists have none of those — Deezer often files them twice, and the Persian-script entry is empty — so below a handful of songs the fallback is YouTube's own Mix for the song (`list=RD<id>`), the radio YouTube autoplays. Only its first entries are read: a mix is effectively endless, and paging through one took over a minute. Suggestions already in the library play from the file. Songs the person queues go ahead of autoplay's, and switching autoplay off removes what it queued at once rather than after ten more songs. Repeat means the queue never ends, so autoplay never asks then.
+
+The queue keeps the listed order and a separate play order, as before; "play next", "add to queue", removing and dragging all go through one `commit` so the refs the audio callbacks read and the state the panel renders never disagree. The session — queue, song and position — is saved as it changes and restored **paused**: reopening the app is not a request for sound.
+
 <a id="farsi-only"></a>
 
 ## Farsi first, with a language layer
@@ -113,6 +130,19 @@ This reverses an earlier decision ("no i18n framework, no strings file, no langu
 - The `/admin` dashboard is English and LTR regardless of the picker. It governs the product, and that page is not the product: it is owner-facing and its screenshots are meant to travel.
 
 `CONTEXT.md` fixes the canonical Farsi rendering of each domain term. Copy changes should agree with it.
+
+<a id="colour"></a>
+
+## Colour: two palettes, two modes
+
+The interface has one chromatic colour, the accent, and everything else is a neutral ramp. That rule is unchanged; what is new is that the colours are a choice. There are two palettes — the **original** lime on green-tinted blacks, which stays the default, and **blue**, an azure accent on navy — and each comes in **dark** and **light**, with "match the system" as a third option for the mode.
+
+**A theme is a set of token values, not a set of classes.** Every colour a component uses is a token in `index.css` (`ink-*`, `lime-*`, `danger`, and four that used to be spelled as hex or as raw white and black in components: `shell`, `panel`, `fg`, `well`). The `@theme` block holds the original dark palette; `data-palette` and `data-theme` on `<html>` select blocks that redefine the same tokens. No component knows which theme it is drawn in, a switch re-renders nothing, and `src/lib/theme.ts` sets both attributes before the first render so a light-mode user never sees a dark frame.
+
+- **The accent keeps its `lime-*` name in every palette.** Renaming it would touch every component for no change in behaviour; the name records where the token came from, and the comment beside it says so.
+- **Overlays are mixed from `fg`, not white.** `bg-white/[0.06]` is a hover wash on a dark page and nothing at all on a white one, so translucent washes and hairlines mix from `fg`, which is white in dark modes and the page's own ink in light ones. Recessed areas (input wells) mix from `well` for the same reason. A solid `text-white` on a danger button stays white: it is on red, not on the page.
+- **The light accents are deeper than the dark ones.** Both accents are also text — the playing row's title, the active tab — and lime or sky blue on white fail contrast. Light mode deepens lime to olive and azure to royal blue, and flips the text on accent buttons to white.
+- **The splash screen and the manifest keep the original palette.** The splash is its own window and shows before any preference can be read, and the manifest is read by the OS at install time — neither can follow a setting, so they show the default.
 
 <a id="typeface"></a>
 

@@ -86,7 +86,7 @@ export function DesktopTitleBar({ onOpenPalette }: DesktopTitleBarProps) {
       data-tauri-drag-region
       onMouseDown={handleMouseDown}
       className={clsx(
-        'custom-titlebar sticky top-0 z-40 flex h-10 w-full shrink-0 select-none items-center justify-between border-b border-white/[0.06] bg-ink-950/90 text-xs text-ink-300 backdrop-blur-xl',
+        'custom-titlebar sticky top-0 z-40 flex h-10 w-full shrink-0 select-none items-center justify-between border-b border-fg/[0.06] bg-ink-950/90 text-xs text-ink-300 backdrop-blur-xl',
         isMac ? 'px-3' : 'ps-3 pe-0',
       )}
     >
@@ -107,7 +107,7 @@ export function DesktopTitleBar({ onOpenPalette }: DesktopTitleBarProps) {
             type="button"
             data-no-drag
             onClick={onOpenPalette}
-            className="group flex h-6.5 w-full max-w-sm items-center justify-between gap-2 rounded-full border border-white/[0.07] bg-white/[0.035] px-2.5 text-[11px] text-ink-400 shadow-sm transition hover:border-lime-flash/40 hover:bg-white/[0.06] hover:text-ink-200 active:scale-[0.99]"
+            className="group flex h-6.5 w-full max-w-sm items-center justify-between gap-2 rounded-full border border-fg/[0.07] bg-fg/[0.035] px-2.5 text-[11px] text-ink-400 shadow-sm transition hover:border-lime-flash/40 hover:bg-fg/[0.06] hover:text-ink-200 active:scale-[0.99]"
             title={m.desktopNav.commandPaletteHint}
           >
             <span className="flex items-center gap-1.5 min-w-0 truncate">
@@ -116,7 +116,7 @@ export function DesktopTitleBar({ onOpenPalette }: DesktopTitleBarProps) {
                 {m.desktopNav.commandPaletteHint}
               </span>
             </span>
-            <kbd className="shrink-0 rounded border border-white/[0.08] bg-black/30 px-1 py-0.2 font-mono text-[9px] font-semibold text-ink-400">
+            <kbd className="shrink-0 rounded border border-fg/[0.08] bg-well/30 px-1 py-0.2 font-mono text-[9px] font-semibold text-ink-400">
               {isMac ? '⌘K' : 'Ctrl+K'}
             </kbd>
           </button>
@@ -135,7 +135,7 @@ export function DesktopTitleBar({ onOpenPalette }: DesktopTitleBarProps) {
             <button
               type="button"
               onClick={() => handleWindowAction('minimize')}
-              className="grid h-10 w-11 place-items-center text-ink-400 hover:bg-white/[0.08] hover:text-ink-100 transition-colors"
+              className="grid h-10 w-11 place-items-center text-ink-400 hover:bg-fg/[0.08] hover:text-ink-100 transition-colors"
               title={m.desktopNav.window.minimize}
             >
               <svg width="10" height="1" viewBox="0 0 10 1" fill="currentColor">
@@ -145,7 +145,7 @@ export function DesktopTitleBar({ onOpenPalette }: DesktopTitleBarProps) {
             <button
               type="button"
               onClick={() => handleWindowAction('maximize')}
-              className="grid h-10 w-11 place-items-center text-ink-400 hover:bg-white/[0.08] hover:text-ink-100 transition-colors"
+              className="grid h-10 w-11 place-items-center text-ink-400 hover:bg-fg/[0.08] hover:text-ink-100 transition-colors"
               title={isMaximized ? m.desktopNav.window.restore : m.desktopNav.window.maximize}
             >
               {isMaximized ? (

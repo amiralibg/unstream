@@ -525,7 +525,7 @@ function DownloadsSheet({
           // Proportional rather than a rem floor, so landscape can't push it
           // past the ceiling (min-height wins over max-height when they clash).
           'fixed inset-x-0 bottom-0 z-50 flex h-[60svh] max-h-[85svh] flex-col overflow-hidden',
-          'rounded-t-panel border-t border-ink-700 bg-ink-900 shadow-2xl shadow-black/60',
+          'rounded-t-panel border-t border-ink-700 bg-ink-900 shadow-2xl shadow-shade/60',
           // Padding, not margin: the list scrolls to the bottom edge and its
           // last row must clear the home indicator.
           'pb-[var(--safe-bottom)]',
@@ -632,7 +632,7 @@ export function DownloadsDock() {
       {panelOpen && isWide && (
         <section
           aria-label={m.dock.heading}
-          className="flex w-[min(24rem,calc(100vw-2.5rem))] animate-fade-up flex-col overflow-hidden rounded-panel border border-ink-700 bg-ink-900 shadow-2xl shadow-black/60"
+          className="flex w-[min(24rem,calc(100vw-2.5rem))] animate-fade-up flex-col overflow-hidden rounded-panel border border-ink-700 bg-ink-900 shadow-2xl shadow-shade/60"
         >
           <header className="flex items-center justify-between border-b border-ink-800 px-4 py-3">
             <h2 className="text-micro font-semibold text-ink-400">{m.dock.heading}</h2>
@@ -652,7 +652,7 @@ export function DownloadsDock() {
         onClick={() => setPanelOpen(!panelOpen)}
         aria-label={panelOpen ? m.dock.close : m.dock.show}
         className={clsx(
-          'relative grid size-14 place-items-center rounded-full bg-lime-flash text-lime-ink shadow-lg shadow-black/40 transition duration-200 hover:bg-lime-soft hover:scale-105 active:scale-95',
+          'relative grid size-14 place-items-center rounded-full bg-lime-flash text-lime-ink shadow-lg shadow-shade/40 transition duration-200 hover:bg-lime-soft hover:scale-105 active:scale-95',
           sheetOpen && 'pointer-events-none opacity-0',
         )}
       >

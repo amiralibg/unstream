@@ -2,6 +2,10 @@
 FROM node:22-alpine AS builder
 WORKDIR /app
 COPY package*.json ./
+# Slow or filtered networks: --build-arg NPM_CONFIG_REGISTRY=<mirror>
+ARG NPM_CONFIG_REGISTRY
+ARG NPM_CONFIG_FETCH_TIMEOUT=300000
+ARG NPM_CONFIG_FETCH_RETRIES=5
 RUN npm ci
 COPY . .
 RUN npm run build

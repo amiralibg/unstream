@@ -63,8 +63,8 @@ export function DesktopDownloadsView({
   ]
 
   return (
-    <div className="flex h-full min-w-0 flex-col overflow-hidden bg-[#10130f]">
-      <header className="shrink-0 border-b border-white/[0.055] bg-[#10130f]/95 px-7 pb-4 pt-5 backdrop-blur-xl">
+    <div className="flex h-full min-w-0 flex-col overflow-hidden bg-panel">
+      <header className="shrink-0 border-b border-fg/[0.055] bg-panel/95 px-7 pb-4 pt-5 backdrop-blur-xl">
         <div className="mx-auto flex max-w-[68rem] items-end justify-between gap-6">
           <div className="min-w-0">
             <h1 className="font-display text-[22px] font-bold tracking-[-0.025em] text-ink-100">
@@ -77,7 +77,7 @@ export function DesktopDownloadsView({
             </p>
           </div>
 
-          <div className="flex h-9 shrink-0 items-center rounded-[10px] border border-white/[0.065] bg-black/20 p-1">
+          <div className="flex h-9 shrink-0 items-center rounded-[10px] border border-fg/[0.065] bg-well/20 p-1">
             {filters.map((item) => (
               <button
                 key={item.id}
@@ -86,7 +86,7 @@ export function DesktopDownloadsView({
                 className={clsx(
                   'flex h-7 items-center gap-1.5 rounded-[7px] px-2.5 text-[11px] font-semibold transition duration-150',
                   filter === item.id
-                    ? 'bg-white/[0.09] text-ink-100 shadow-sm'
+                    ? 'bg-fg/[0.09] text-ink-100 shadow-sm'
                     : 'text-ink-500 hover:text-ink-200',
                 )}
               >
@@ -109,7 +109,7 @@ export function DesktopDownloadsView({
         <div className="mx-auto max-w-[68rem] space-y-3">
           {filtered.length === 0 ? (
             <div className="flex min-h-[22rem] animate-fade-up flex-col items-center justify-center text-center">
-              <div className="grid size-14 place-items-center rounded-2xl border border-white/[0.06] bg-white/[0.025] text-ink-500 shadow-[0_14px_40px_rgba(0,0,0,0.18)]">
+              <div className="grid size-14 place-items-center rounded-2xl border border-fg/[0.06] bg-fg/[0.025] text-ink-500 shadow-[0_14px_40px_rgba(0,0,0,0.18)]">
                 <ArrowDownToLine className="size-6" strokeWidth={1.7} />
               </div>
               <h2 className="mt-4 font-display text-sm font-semibold text-ink-200">
@@ -204,7 +204,7 @@ function DesktopJobCard({
   }
 
   return (
-    <article className="group overflow-hidden rounded-[14px] border border-white/[0.065] bg-white/[0.025] shadow-[0_10px_30px_rgba(0,0,0,0.12)] transition hover:border-white/[0.09] hover:bg-white/[0.033]">
+    <article className="group overflow-hidden rounded-[14px] border border-fg/[0.065] bg-fg/[0.025] shadow-[0_10px_30px_rgba(0,0,0,0.12)] transition hover:border-fg/[0.09] hover:bg-fg/[0.033]">
       <div className="flex items-center gap-3.5 p-3.5">
         {entry.cover_url ? (
           <img
@@ -212,10 +212,10 @@ function DesktopJobCard({
             alt=""
             loading="lazy"
             decoding="async"
-            className="size-12 shrink-0 rounded-[9px] object-cover shadow-md ring-1 ring-white/10"
+            className="size-12 shrink-0 rounded-[9px] object-cover shadow-md ring-1 ring-fg/10"
           />
         ) : (
-          <div className="grid size-12 shrink-0 place-items-center rounded-[9px] bg-white/[0.05] text-ink-500 ring-1 ring-white/[0.06]">
+          <div className="grid size-12 shrink-0 place-items-center rounded-[9px] bg-fg/[0.05] text-ink-500 ring-1 ring-fg/[0.06]">
             <Music2 className="size-5" />
           </div>
         )}
@@ -231,7 +231,7 @@ function DesktopJobCard({
             >
               {entry.name}
             </h3>
-            <span className="shrink-0 rounded-md border border-white/[0.06] bg-black/20 px-1.5 py-0.5 text-[9px] font-semibold text-ink-500">
+            <span className="shrink-0 rounded-md border border-fg/[0.06] bg-well/20 px-1.5 py-0.5 text-[9px] font-semibold text-ink-500">
               {qualityLabel(entry.quality, m)}
             </span>
           </div>
@@ -269,7 +269,7 @@ function DesktopJobCard({
               <button
                 type="button"
                 onClick={onDismiss}
-                className="grid size-8 place-items-center rounded-lg text-ink-500 opacity-60 transition hover:bg-white/[0.06] hover:text-ink-200 group-hover:opacity-100"
+                className="grid size-8 place-items-center rounded-lg text-ink-500 opacity-60 transition hover:bg-fg/[0.06] hover:text-ink-200 group-hover:opacity-100"
                 title={m.dock.remove}
               >
                 <Trash2 className="size-3.5" />
@@ -281,7 +281,7 @@ function DesktopJobCard({
               onClick={report(onCancel)}
               disabled={entry.cancelling}
               title={entry.cancelling ? m.dock.cancelling : m.dock.cancel}
-              className="flex h-8 items-center gap-1.5 rounded-lg border border-white/[0.07] bg-white/[0.035] px-2.5 text-[11px] font-semibold text-ink-300 transition hover:bg-white/[0.07] hover:text-ink-100 disabled:cursor-default disabled:opacity-55 disabled:hover:bg-white/[0.035]"
+              className="flex h-8 items-center gap-1.5 rounded-lg border border-fg/[0.07] bg-fg/[0.035] px-2.5 text-[11px] font-semibold text-ink-300 transition hover:bg-fg/[0.07] hover:text-ink-100 disabled:cursor-default disabled:opacity-55 disabled:hover:bg-fg/[0.035]"
             >
               {entry.cancelling ? (
                 <LoaderCircle className="size-3 animate-spin" />
@@ -295,9 +295,9 @@ function DesktopJobCard({
       </div>
 
       {!finished && (
-        <div className="h-0.5 w-full bg-black/20" dir="ltr">
+        <div className="h-0.5 w-full bg-well/20" dir="ltr">
           <div
-            className="h-full bg-lime-flash shadow-[0_0_8px_rgba(200,242,79,0.35)] transition-[width] duration-300"
+            className="h-full bg-lime-flash shadow-[0_0_8px_color-mix(in_oklab,var(--color-lime-flash)_35%,transparent)] transition-[width] duration-300"
             style={{ width: `${fraction * 100}%` }}
           />
         </div>
@@ -313,7 +313,7 @@ function DesktopJobCard({
             <button
               type="button"
               onClick={onOpenSettings}
-              className="flex h-7 shrink-0 items-center gap-1.5 rounded-lg border border-white/[0.08] bg-white/[0.04] px-2.5 text-[11px] font-semibold text-ink-100 transition hover:border-lime-flash/40 hover:text-lime-flash"
+              className="flex h-7 shrink-0 items-center gap-1.5 rounded-lg border border-fg/[0.08] bg-fg/[0.04] px-2.5 text-[11px] font-semibold text-ink-100 transition hover:border-lime-flash/40 hover:text-lime-flash"
             >
               <Settings2 className="size-3" />
               {m.failure.fix}
@@ -322,7 +322,7 @@ function DesktopJobCard({
         </div>
       )}
 
-      <ul className="max-h-60 divide-y divide-white/[0.045] overflow-y-auto border-t border-white/[0.045] bg-black/[0.08]">
+      <ul className="max-h-60 divide-y divide-fg/[0.045] overflow-y-auto border-t border-fg/[0.045] bg-well/[0.08]">
         {trackItems.map((item) => {
           const track = entry.tracks.find((candidate) => candidate.id === item.id)
           const title = track?.title ?? item.id
@@ -335,7 +335,7 @@ function DesktopJobCard({
             <li
               key={item.id}
               title={state.status === 'error' ? m.failure[state.error_kind ?? 'other'] : undefined}
-              className="flex min-h-9 items-center justify-between gap-3 px-3.5 text-[11px] transition hover:bg-white/[0.025]"
+              className="flex min-h-9 items-center justify-between gap-3 px-3.5 text-[11px] transition hover:bg-fg/[0.025]"
             >
               <div className="flex min-w-0 flex-1 items-center gap-2.5">
                 {state.status === 'done' ? (
@@ -359,7 +359,7 @@ function DesktopJobCard({
                   <button
                     type="button"
                     onClick={() => state.path && revealFile(state.path)}
-                    className="flex h-6 items-center gap-1 rounded-md px-1.5 font-medium text-ink-500 transition hover:bg-white/[0.05] hover:text-lime-flash"
+                    className="flex h-6 items-center gap-1 rounded-md px-1.5 font-medium text-ink-500 transition hover:bg-fg/[0.05] hover:text-lime-flash"
                   >
                     <FolderOpen className="size-3" />
                     {m.desktopNav.openFolder}

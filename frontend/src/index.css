@@ -113,10 +113,14 @@
      else. Applied by `faNumerals()` in src/lib/i18n.tsx, never by hand. */
   --font-fa: 'Vazirmatn FD', 'Vazirmatn Fallback', system-ui, sans-serif;
 
-  /* Green-tinted dark neutrals */
+  /* Green-tinted dark neutrals — the original palette, and the default.
+     `ink-950` is the page and `ink-100` the text in every palette and mode:
+     the others below redefine the whole ramp rather than inverting it per
+     component, so no class anywhere names a theme. */
   --color-ink-950: #0b0d0a;
   --color-ink-900: #121510;
   --color-ink-800: #1a1e17;
+  --color-ink-750: #1f241b;
   --color-ink-700: #242a20;
   --color-ink-600: #39412f;
   --color-ink-500: #596150;
@@ -127,12 +131,28 @@
 
   /* Lime accent — the only chromatic colour in the UI. It marks the one
        primary action per surface and the "this is playing / this is done"
-       state. It is never used for borders, body text or decoration. */
+       state. It is never used for borders, body text or decoration. Other
+       palettes keep the `lime-*` names for their own accent, so a palette is
+       a token change and no component knows which one it is drawn in. */
   --color-lime-flash: #c8f24f;
   --color-lime-soft: #d8f97a;
   --color-lime-ink: #171c05;
 
   --color-danger: #f0705f;
+
+  /* Surfaces a component used to spell as a hex: the frame around the
+     content (sidebar, title bar, player) and the floating panels (menus,
+     palette, queue). */
+  --color-shell: #0a0c09;
+  --color-panel: #12150f;
+
+  /* What translucent overlays are mixed from — hover washes, hairlines,
+     glass. White over a dark page; the page's own ink in a light mode,
+     where a white wash would be invisible. */
+  --color-fg: #ffffff;
+  /* Recessed areas — input wells, a sidebar footer. */
+  --color-well: #000000;
+  --color-shade: #000000;
 
   /* Type ramp — meta / control / content / reading / headings. Nothing
      off-scale. */
@@ -378,6 +398,88 @@ html {
   color-scheme: dark;
 }
 
+/* Palettes and modes: the same tokens, redefined. `data-palette` and
+   `data-theme` are set on <html> by src/lib/theme.ts. The original palette
+   in dark mode is the @theme default above and needs no block. */
+
+/* Original palette, light: warm green-greys, and a lime deepened to olive —
+   the flash itself is unreadable as text on white. */
+html[data-theme='light'] {
+  color-scheme: light;
+  --color-ink-950: #f5f7f2;
+  --color-ink-900: #ffffff;
+  --color-ink-800: #eef1ea;
+  --color-ink-750: #e6eae1;
+  --color-ink-700: #dde2d6;
+  --color-ink-600: #c4cbb9;
+  --color-ink-500: #8d9682;
+  --color-ink-400: #626b57;
+  --color-ink-300: #454d3b;
+  --color-ink-200: #2b3224;
+  --color-ink-100: #141810;
+
+  --color-lime-flash: #4f7f06;
+  --color-lime-soft: #5e930c;
+  --color-lime-ink: #ffffff;
+
+  --color-danger: #d5443a;
+
+  --color-shell: #edf0e8;
+  --color-panel: #ffffff;
+
+  --color-fg: #1a2015;
+  --color-well: #bcc5b0;
+  --color-shade: #5b6450;
+}
+
+/* Blue palette, dark: navy neutrals and an azure accent. */
+html[data-palette='blue'] {
+  --color-ink-950: #0a1020;
+  --color-ink-900: #0f172a;
+  --color-ink-800: #162036;
+  --color-ink-750: #1b2740;
+  --color-ink-700: #1f2b45;
+  --color-ink-600: #2f3d5c;
+  --color-ink-500: #4d5b7a;
+  --color-ink-400: #7482a0;
+  --color-ink-300: #a3afc7;
+  --color-ink-200: #c9d2e3;
+  --color-ink-100: #e8edf6;
+
+  --color-lime-flash: #5b9cff;
+  --color-lime-soft: #7db1ff;
+  --color-lime-ink: #061430;
+
+  --color-shell: #080d1a;
+  --color-panel: #111a2e;
+}
+
+/* Blue palette, light: white and blue-grey, and a deeper blue. */
+html[data-palette='blue'][data-theme='light'] {
+  --color-ink-950: #f4f6fb;
+  --color-ink-900: #ffffff;
+  --color-ink-800: #edf1f8;
+  --color-ink-750: #e5eaf3;
+  --color-ink-700: #dde4ef;
+  --color-ink-600: #c5cfdf;
+  --color-ink-500: #8e9ab0;
+  --color-ink-400: #5f6c85;
+  --color-ink-300: #43506a;
+  --color-ink-200: #28344d;
+  --color-ink-100: #111a2c;
+
+  --color-lime-flash: #1f5fd6;
+  --color-lime-soft: #2f6fe8;
+  --color-lime-ink: #ffffff;
+
+  --color-shell: #eaeff7;
+  --color-panel: #ffffff;
+
+  --color-fg: #0f1d3a;
+  --color-well: #b9c5da;
+  --color-shade: #50607e;
+}
+
 body {
   font-family: var(--font-sans);
   color: var(--color-ink-100);
@@ -486,17 +588,17 @@ body {
 }
 
 ::-webkit-scrollbar-thumb {
-  background: rgba(255, 255, 255, 0.12);
+  background: color-mix(in oklab, var(--color-fg) 12%, transparent);
   border-radius: 9999px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: rgba(255, 255, 255, 0.25);
+  background: color-mix(in oklab, var(--color-fg) 25%, transparent);
 }
 
 html {
   scrollbar-width: thin;
-  scrollbar-color: rgba(255, 255, 255, 0.15) transparent;
+  scrollbar-color: color-mix(in oklab, var(--color-fg) 15%, transparent) transparent;
 }
 
 /* Native window dragging for custom titlebar */
@@ -553,7 +655,7 @@ input[type='range']::-webkit-slider-thumb {
   width: 12px;
   height: 12px;
   border-radius: 9999px;
-  background: #c8f24f;
+  background: var(--color-lime-flash);
   border: none;
   box-shadow:
     0 1px 3px rgba(0, 0, 0, 0.5),
@@ -571,7 +673,7 @@ input[type='range']:active::-webkit-slider-thumb {
   transform: scale(1.2);
   box-shadow:
     0 2px 6px rgba(0, 0, 0, 0.7),
-    0 0 0 2px rgba(200, 242, 79, 0.35);
+    0 0 0 2px color-mix(in oklab, var(--color-lime-flash) 35%, transparent);
 }
 
 /* Firefox */
@@ -587,7 +689,7 @@ input[type='range']::-moz-range-thumb {
   width: 12px;
   height: 12px;
   border-radius: 9999px;
-  background: #c8f24f;
+  background: var(--color-lime-flash);
   border: none;
   box-shadow:
     0 1px 3px rgba(0, 0, 0, 0.5),
@@ -603,7 +705,7 @@ input[type='range']:active::-moz-range-thumb {
   transform: scale(1.2);
   box-shadow:
     0 2px 6px rgba(0, 0, 0, 0.7),
-    0 0 0 2px rgba(200, 242, 79, 0.35);
+    0 0 0 2px color-mix(in oklab, var(--color-lime-flash) 35%, transparent);
 }
 
 /* IE / Edge legacy */
@@ -626,13 +728,13 @@ input[type='range']::-ms-thumb {
   width: 12px;
   height: 12px;
   border-radius: 9999px;
-  background: #c8f24f;
+  background: var(--color-lime-flash);
   border: none;
 }
 
 /* Volume Slider variation (refined white thumb) */
 input[type='range'].slider-volume::-webkit-slider-thumb {
-  background: #f4f4f5;
+  background: var(--color-ink-100);
   box-shadow:
     0 1px 3px rgba(0, 0, 0, 0.5),
     0 0 0 1px rgba(0, 0, 0, 0.2);
@@ -643,11 +745,11 @@ input[type='range'].slider-volume:active::-webkit-slider-thumb {
   transform: scale(1.2);
   box-shadow:
     0 2px 6px rgba(0, 0, 0, 0.7),
-    0 0 0 2px rgba(255, 255, 255, 0.35);
+    0 0 0 2px color-mix(in oklab, var(--color-fg) 35%, transparent);
 }
 
 input[type='range'].slider-volume::-moz-range-thumb {
-  background: #f4f4f5;
+  background: var(--color-ink-100);
   box-shadow:
     0 1px 3px rgba(0, 0, 0, 0.5),
     0 0 0 1px rgba(0, 0, 0, 0.2);
@@ -658,9 +760,9 @@ input[type='range'].slider-volume:active::-moz-range-thumb {
   transform: scale(1.2);
   box-shadow:
     0 2px 6px rgba(0, 0, 0, 0.7),
-    0 0 0 2px rgba(255, 255, 255, 0.35);
+    0 0 0 2px color-mix(in oklab, var(--color-fg) 35%, transparent);
 }
 
 input[type='range'].slider-volume::-ms-thumb {
-  background: #f4f4f5;
+  background: var(--color-ink-100);
 }

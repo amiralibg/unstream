@@ -33,6 +33,7 @@ import { DownloadsDock } from './components/DownloadsDock'
 import { QualityPicker } from './components/QualityPicker'
 import { LyricsToggle } from './components/LyricsToggle'
 import { LanguagePicker } from './components/LanguagePicker'
+import { ThemePicker } from './components/ThemePicker'
 import { SettingsSheet } from './components/SettingsSheet'
 import { DesktopTitleBar } from './components/DesktopTitleBar'
 import { PlayerBar } from './components/PlayerBar'
@@ -51,6 +52,9 @@ const DesktopLibraryView = lazy(() =>
 )
 const DesktopDownloadsView = lazy(() =>
   import('./components/DesktopDownloadsView').then((m) => ({ default: m.DesktopDownloadsView })),
+)
+const DesktopPlaylistsView = lazy(() =>
+  import('./components/DesktopPlaylistsView').then((m) => ({ default: m.DesktopPlaylistsView })),
 )
 const DesktopSettingsView = lazy(() =>
   import('./components/DesktopSettingsView').then((m) => ({ default: m.DesktopSettingsView })),
@@ -322,6 +326,7 @@ function Shell() {
   const [initialParams] = useState(() => new URLSearchParams(window.location.search))
   const inputRef = useRef<HTMLInputElement | null>(null)
   const [desktopTab, setDesktopTab] = useState<DesktopTab>('search')
+  const [openPlaylist, setOpenPlaylist] = useState<string | null>(null)
   // Set when a failure sends the person to Settings: the Connection card
   // scrolls into view and runs its test without being asked.
   const [connectionFocus, setConnectionFocus] = useState(false)
@@ -554,6 +559,10 @@ function Shell() {
           return
         } else if (e.key === '4') {
           e.preventDefault()
+          setDesktopTab('playlists')
+          return
+        } else if (e.key === '5') {
+          e.preventDefault()
           setDesktopTab('settings')
           return
         }
@@ -634,7 +643,7 @@ function Shell() {
   // ==========================================
   if (desktopMode) {
     return (
-      <div className="flex h-screen w-screen flex-col overflow-hidden bg-[#0a0c09] text-ink-100 select-none">
+      <div className="flex h-screen w-screen flex-col overflow-hidden bg-shell text-ink-100 select-none">
         <DesktopIntegrations onUrl={handleDesktopUrl} />
         <DesktopTitleBar onOpenPalette={() => setPaletteOpen(true)} />
         <OfflineBanner />
@@ -649,10 +658,15 @@ function Shell() {
                 setDesktopTab(tab)
               }}
               onOpenKaraoke={() => setKaraokeOpen(true)}
+              activePlaylist={openPlaylist}
+              onOpenPlaylist={(id) => {
+                setOpenPlaylist(id)
+                setDesktopTab('playlists')
+              }}
             />
 
             <div className="flex-1 min-h-0 overflow-hidden">
-              <Suspense fallback={<div className="h-full bg-[#10130f]" />}>
+              <Suspense fallback={<div className="h-full bg-panel" />}>
                 {desktopTab === 'downloads' ? (
                   <DesktopDownloadsView
                     onGoToSearch={() => setDesktopTab('search')}
@@ -660,10 +674,12 @@ function Shell() {
                   />
                 ) : desktopTab === 'library' ? (
                   <DesktopLibraryView />
+                ) : desktopTab === 'playlists' ? (
+                  <DesktopPlaylistsView selectedId={openPlaylist} onSelect={setOpenPlaylist} />
                 ) : desktopTab === 'settings' ? (
                   <DesktopSettingsView focusConnection={connectionFocus} />
                 ) : (
-                  <div className="flex h-full flex-col overflow-y-auto bg-[radial-gradient(circle_at_50%_-20%,rgba(200,242,79,0.045),transparent_34%)] px-7 pb-8 pt-5">
+                  <div className="flex h-full flex-col overflow-y-auto bg-[radial-gradient(circle_at_50%_-20%,color-mix(in_oklab,var(--color-lime-flash)_4.5%,transparent),transparent_34%)] px-7 pb-8 pt-5">
                     <main className="mx-auto w-full max-w-[62rem] flex-1">
                       {sharedArrival ? (
                         <section className="pt-6 pb-8">
@@ -751,7 +767,7 @@ function Shell() {
                                 ].map((service) => (
                                   <span
                                     key={service}
-                                    className="inline-flex items-center gap-1.5 rounded-full border border-white/[0.07] bg-white/[0.025] px-2.5 py-1 text-micro font-medium text-ink-400"
+                                    className="inline-flex items-center gap-1.5 rounded-full border border-fg/[0.07] bg-fg/[0.025] px-2.5 py-1 text-micro font-medium text-ink-400"
                                   >
                                     <span className="size-1.5 rounded-full bg-lime-flash/70" />
                                     {service}
@@ -884,6 +900,7 @@ function Shell() {
               <LyricsToggle />
               <QualityPicker />
               <LanguagePicker />
+              <ThemePicker />
             </div>
             <button
               onClick={() => setSettingsOpen(true)}

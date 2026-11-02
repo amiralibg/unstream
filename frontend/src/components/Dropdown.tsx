@@ -154,8 +154,8 @@ export function Dropdown({
           'flex h-8 w-full cursor-pointer items-center justify-between gap-2 rounded-lg border px-2.5 text-[11px] font-semibold outline-none transition',
           'focus-visible:ring-2 focus-visible:ring-lime-flash/40',
           open
-            ? 'border-lime-flash/40 bg-white/[0.07] text-ink-100'
-            : 'border-white/[0.07] bg-white/[0.035] text-ink-200 hover:bg-white/[0.07]',
+            ? 'border-lime-flash/40 bg-fg/[0.07] text-ink-100'
+            : 'border-fg/[0.07] bg-fg/[0.035] text-ink-200 hover:bg-fg/[0.07]',
         )}
       >
         <span className="truncate">{current?.label ?? placeholder ?? ''}</span>
@@ -176,7 +176,7 @@ export function Dropdown({
           className={clsx(
             // Above the panel's own stacking, and tall enough to scroll
             // rather than run off the window on a short list of many.
-            'absolute z-50 max-h-64 min-w-full overflow-y-auto rounded-xl border border-white/[0.09] bg-[#14180f] p-1 shadow-[0_18px_40px_rgba(0,0,0,0.5)] animate-fade-up',
+            'absolute z-50 max-h-64 min-w-full overflow-y-auto rounded-xl border border-fg/[0.09] bg-panel p-1 shadow-[0_18px_40px_rgba(0,0,0,0.5)] animate-fade-up',
             align === 'end' ? 'end-0' : 'start-0',
             dropUp ? 'bottom-full mb-1.5' : 'top-full mt-1.5',
           )}
@@ -197,7 +197,7 @@ export function Dropdown({
                   onClick={() => choose(i)}
                   className={clsx(
                     'flex w-full items-center gap-2 rounded-lg px-2.5 py-1.5 text-start text-[11px] transition',
-                    i === active ? 'bg-white/[0.07]' : 'bg-transparent',
+                    i === active ? 'bg-fg/[0.07]' : 'bg-transparent',
                     isSelected ? 'font-semibold text-lime-flash' : 'font-medium text-ink-200',
                   )}
                 >

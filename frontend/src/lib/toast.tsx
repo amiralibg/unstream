@@ -66,7 +66,7 @@ export function ToastProvider({ children }: { children: ReactNode }) {
           <div
             key={toast.id}
             className={clsx(
-              'pointer-events-auto flex items-center gap-2.5 rounded-btn border bg-ink-900/95 px-4 py-3 text-mini text-ink-100 shadow-xl shadow-black/40 backdrop-blur transition-all duration-200',
+              'pointer-events-auto flex items-center gap-2.5 rounded-btn border bg-ink-900/95 px-4 py-3 text-mini text-ink-100 shadow-xl shadow-shade/40 backdrop-blur transition-all duration-200',
               // A hairline in the accent tells you the outcome before you read it.
               toast.kind === 'success'
                 ? 'border-lime-flash/40'

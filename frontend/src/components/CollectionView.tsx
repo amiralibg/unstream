@@ -1,12 +1,33 @@
 import { useMemo, useState, type CSSProperties } from 'react'
 import { useMutation } from '@tanstack/react-query'
-import { Archive, Check, Download, Link2, LoaderCircle, Music2, X } from 'lucide-react'
+import {
+  Archive,
+  Check,
+  Download,
+  Link2,
+  ListPlus,
+  LoaderCircle,
+  Music2,
+  Pause,
+  Play,
+  X,
+} from 'lucide-react'
 import clsx from 'clsx'
-import { apiError, jobZipUrl, type Collection, type JobTrack, type Track } from '../lib/api'
+import {
+  apiError,
+  jobZipUrl,
+  trackInput,
+  type Collection,
+  type JobTrack,
+  type Track,
+} from '../lib/api'
 import { useDownloads } from '../lib/downloads'
 import { faNumerals, useMessages, useStartAlign } from '../lib/i18n'
+import { useOptionalPlayer } from '../lib/player'
+import { streamQueueItem, useAddToPlaylist } from '../lib/playlists'
 import { useToast } from '../lib/toast'
 import { LyricsSheet } from './LyricsSheet'
+import { SongMenu } from './SongMenu'
 import { TrackRow } from './TrackRow'
 
 interface Props {
@@ -33,6 +54,12 @@ export function CollectionView({ url, collection }: Props) {
   const [copied, setCopied] = useState(false)
   // Track whose lyrics sheet is open, if any.
   const [lyricsTrack, setLyricsTrack] = useState<Track | null>(null)
+  // Only the desktop mounts a player; the web keeps its previews.
+  const player = useOptionalPlayer()
+  const saveAsPlaylist = useAddToPlaylist()
+  const streamItems = () => collection.tracks.map(streamQueueItem)
+  const collectionPlaying =
+    player !== null && collection.tracks.some((t) => player.current?.id === streamQueueItem(t).id)
 
   const copyLink = async () => {
     const share = `${window.location.origin}/?url=${encodeURIComponent(url)}`
@@ -151,6 +178,46 @@ export function CollectionView({ url, collection }: Props) {
         </div>
 
         <div className="flex items-center gap-2">
+          {player && collection.tracks.length > 0 && (
+            <>
+              <button
+                type="button"
+                onClick={() =>
+                  collectionPlaying ? player.toggle() : player.playQueue(streamItems(), 0)
+                }
+                title={collectionPlaying && player.playing ? m.player.pause : m.player.playFull}
+                aria-label={
+                  collectionPlaying && player.playing ? m.player.pause : m.player.playFull
+                }
+                className="grid size-10 place-items-center rounded-btn bg-lime-flash text-lime-ink transition duration-200 hover:bg-lime-soft active:scale-95"
+              >
+                {collectionPlaying && player.playing ? (
+                  <Pause className="size-4 fill-current" />
+                ) : (
+                  <Play className="size-4 translate-x-px fill-current" />
+                )}
+              </button>
+              <button
+                type="button"
+                disabled={saveAsPlaylist.isPending}
+                onClick={() =>
+                  saveAsPlaylist.mutate({
+                    target: { create: collection.name || m.playlists.title },
+                    songs: collection.tracks.map(trackInput),
+                  })
+                }
+                title={m.playlists.addAllTo}
+                aria-label={m.playlists.addAllTo}
+                className="grid size-10 place-items-center rounded-btn border border-ink-600 text-ink-300 transition duration-200 hover:border-ink-400 hover:text-ink-100 active:scale-95 disabled:opacity-50"
+              >
+                {saveAsPlaylist.isPending ? (
+                  <LoaderCircle className="size-4 animate-spin" />
+                ) : (
+                  <ListPlus className="size-4" />
+                )}
+              </button>
+            </>
+          )}
           <button
             onClick={copyLink}
             title={m.collection.copy}
@@ -291,6 +358,33 @@ export function CollectionView({ url, collection }: Props) {
                 collection.tracks.length > 1 ? () => toggleSelect(track.id) : undefined
               }
               onLyrics={() => setLyricsTrack(track)}
+              onPlay={
+                player
+                  ? () => {
+                      const id = streamQueueItem(track).id
+                      if (player.current?.id === id) player.toggle()
+                      else player.playQueue(streamItems(), index)
+                    }
+                  : undefined
+              }
+              playback={
+                player
+                  ? {
+                      active: player.current?.id === streamQueueItem(track).id,
+                      playing: player.playing,
+                      loading: player.loading,
+                    }
+                  : undefined
+              }
+              menu={
+                player ? (
+                  <SongMenu
+                    songs={() => [trackInput(track)]}
+                    items={() => [streamQueueItem(track)]}
+                    className="tap-target grid size-8 shrink-0 place-items-center rounded-ctl border border-ink-700 text-ink-400 transition duration-200 hover:border-lime-flash/50 hover:text-lime-flash active:scale-90 pointer-fine:opacity-60 pointer-fine:group-hover:opacity-100"
+                  />
+                ) : undefined
+              }
             />
           )
         })}

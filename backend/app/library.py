@@ -291,6 +291,24 @@ def resolve(file_id: str, root: Path | None = None) -> Path | None:
     return path
 
 
+def relative(file_id: str, root: Path | None = None) -> str | None:
+    """The id's path relative to the downloads folder, as posix text.
+
+    What a playlist stores instead of the id: the id is a hash of exactly
+    this string, so the two say the same thing, but only the path still
+    means something once it has been exported to another machine.
+    """
+    path = _index.get(file_id)
+    if path is None:
+        path = resolve(file_id, root)
+    if path is None:
+        return None
+    try:
+        return path.relative_to((root or jobs.DOWNLOADS_DIR).resolve()).as_posix()
+    except ValueError:
+        return None
+
+
 def _sniff(data: bytes) -> str:
     for magic, mime in _MAGIC:
         if data.startswith(magic):

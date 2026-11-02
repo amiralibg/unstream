@@ -16,6 +16,9 @@ import {
   settingsCardHeading,
 } from './DesktopConnectionSettings'
 import { LanguagePicker } from './LanguagePicker'
+import { PalettePicker } from './PalettePicker'
+import { ThemePicker } from './ThemePicker'
+import { AutoplayToggle } from './AutoplayToggle'
 import { LyricsToggle } from './LyricsToggle'
 import { QualityPicker } from './QualityPicker'
 import {
@@ -41,7 +44,7 @@ function Credit({ href, image, name }: { href: string; image: string; name: stri
       href={href}
       target="_blank"
       rel="noreferrer"
-      className="inline-flex items-center gap-1.5 rounded-full border border-white/[0.08] bg-white/[0.03] px-2.5 py-1 text-micro font-medium text-ink-300 transition hover:border-lime-flash/40 hover:text-lime-flash"
+      className="inline-flex items-center gap-1.5 rounded-full border border-fg/[0.08] bg-fg/[0.03] px-2.5 py-1 text-micro font-medium text-ink-300 transition hover:border-lime-flash/40 hover:text-lime-flash"
     >
       <img src={image} alt="" className="size-4 rounded-full object-cover" />
       <span dir="ltr">{name}</span>
@@ -128,7 +131,7 @@ export function DesktopSettingsView({ focusConnection = false }: { focusConnecti
   return (
     <div className="flex h-full min-w-0 flex-col overflow-hidden bg-ink-950">
       {/* Settings Header */}
-      <header className="shrink-0 border-b border-white/[0.06] bg-ink-950/90 px-6 sm:px-8 py-5 backdrop-blur-xl">
+      <header className="shrink-0 border-b border-fg/[0.06] bg-ink-950/90 px-6 sm:px-8 py-5 backdrop-blur-xl">
         <div className="mx-auto max-w-4xl">
           <h1 className="font-display text-2xl font-bold tracking-tight text-ink-100">
             {m.desktopNav.settings}
@@ -150,11 +153,17 @@ export function DesktopSettingsView({ focusConnection = false }: { focusConnecti
             </h2>
             <p className="mt-2 text-mini text-ink-400">{m.desktopNav.audioDefaultsHint}</p>
             <div className="mt-4 space-y-3">
-              <div className="flex min-h-11 items-center justify-between gap-4 rounded-ctl border border-white/[0.07] bg-black/30 px-3.5">
+              <div className="flex min-h-11 items-center justify-between gap-4 rounded-ctl border border-fg/[0.07] bg-well/30 px-3.5">
                 <QualityPicker className="w-full justify-between" />
               </div>
-              <div className="flex min-h-11 items-center justify-between gap-4 rounded-ctl border border-white/[0.07] bg-black/30 px-3.5">
+              <div className="flex min-h-11 items-center justify-between gap-4 rounded-ctl border border-fg/[0.07] bg-well/30 px-3.5">
                 <LyricsToggle className="w-full justify-between" />
+              </div>
+              <div className="rounded-ctl border border-fg/[0.07] bg-well/30 px-3.5 py-2.5">
+                <AutoplayToggle className="w-full justify-between" />
+                <p className="mt-1.5 text-micro leading-relaxed text-ink-500">
+                  {m.player.autoplay.hint}
+                </p>
               </div>
             </div>
           </section>
@@ -168,8 +177,16 @@ export function DesktopSettingsView({ focusConnection = false }: { focusConnecti
               <span>{m.language.label}</span>
             </h2>
             <p className="mt-2 text-mini text-ink-400">{m.desktopNav.languageHint}</p>
-            <div className="mt-4 flex min-h-11 items-center rounded-ctl border border-white/[0.07] bg-black/30 px-3.5">
-              <LanguagePicker className="w-full justify-between" />
+            <div className="mt-4 space-y-3">
+              <div className="flex min-h-11 items-center rounded-ctl border border-fg/[0.07] bg-well/30 px-3.5">
+                <LanguagePicker className="w-full justify-between" />
+              </div>
+              <div className="flex min-h-11 items-center rounded-ctl border border-fg/[0.07] bg-well/30 px-3.5">
+                <ThemePicker className="w-full justify-between" />
+              </div>
+              <div className="flex min-h-11 items-center rounded-ctl border border-fg/[0.07] bg-well/30 px-3.5">
+                <PalettePicker className="w-full justify-between" />
+              </div>
             </div>
           </section>
 
@@ -189,7 +206,7 @@ export function DesktopSettingsView({ focusConnection = false }: { focusConnecti
                 <button
                   type="button"
                   onClick={() => downloadsDir && openFolder(downloadsDir)}
-                  className="flex h-8.5 items-center gap-1.5 rounded-ctl border border-white/[0.08] bg-white/[0.03] px-3 text-mini font-medium text-ink-300 transition hover:border-lime-flash/40 hover:text-lime-flash active:scale-95"
+                  className="flex h-8.5 items-center gap-1.5 rounded-ctl border border-fg/[0.08] bg-fg/[0.03] px-3 text-mini font-medium text-ink-300 transition hover:border-lime-flash/40 hover:text-lime-flash active:scale-95"
                 >
                   <FolderOpen className="size-3.5 text-lime-flash" />
                   <span>{m.settings.openInFinder}</span>
@@ -203,7 +220,7 @@ export function DesktopSettingsView({ focusConnection = false }: { focusConnecti
                 </button>
               </div>
             </div>
-            <div className="mt-4 flex min-h-11 items-center rounded-ctl border border-white/[0.07] bg-black/40 px-3.5 font-mono text-mini text-ink-300">
+            <div className="mt-4 flex min-h-11 items-center rounded-ctl border border-fg/[0.07] bg-well/30 px-3.5 font-mono text-mini text-ink-300">
               <HardDrive className="size-4 text-ink-500 me-2.5 shrink-0" />
               <span dir="ltr" className="min-w-0 break-all text-start">
                 {downloadsDir || '...'}
@@ -244,7 +261,7 @@ export function DesktopSettingsView({ focusConnection = false }: { focusConnecti
                   type="button"
                   onClick={handleCheckUpdate}
                   disabled={checkingUpdate}
-                  className="flex h-8.5 items-center gap-1.5 rounded-ctl border border-white/[0.08] bg-white/[0.03] px-3 text-mini font-medium text-ink-300 transition hover:border-lime-flash/40 hover:text-lime-flash disabled:opacity-50 active:scale-95"
+                  className="flex h-8.5 items-center gap-1.5 rounded-ctl border border-fg/[0.08] bg-fg/[0.03] px-3 text-mini font-medium text-ink-300 transition hover:border-lime-flash/40 hover:text-lime-flash disabled:opacity-50 active:scale-95"
                 >
                   <RefreshCw className={clsx('size-3.5', checkingUpdate && 'animate-spin')} />
                   <span>
@@ -294,7 +311,7 @@ export function DesktopSettingsView({ focusConnection = false }: { focusConnecti
                         {progress.total !== null && ` / ${m.app.num(mb(progress.total))}`} MB
                       </span>
                     </div>
-                    <div className="h-1.5 overflow-hidden rounded-full bg-white/[0.08]">
+                    <div className="h-1.5 overflow-hidden rounded-full bg-fg/[0.08]">
                       {/* No content length means no honest percentage, so the
                           bar fills and pulses instead of inventing one. */}
                       <div
