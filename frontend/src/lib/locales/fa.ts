@@ -218,6 +218,7 @@ const fa: Messages = {
     newVersion: 'نسخه جدید در دسترس است:',
     builtBy: 'ساخته‌شده توسط',
     and: 'و',
+    listSeparator: '،',
     totalDownloads: 'کل',
     clearCompleted: 'پاک‌سازی تمام‌شده‌ها',
     revealInFolder: 'نمایش در پوشه',

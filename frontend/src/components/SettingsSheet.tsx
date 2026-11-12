@@ -199,7 +199,7 @@ export function SettingsSheet({ onClose }: { onClose: () => void }) {
             <img src="/amirali.jpg" alt="" className="size-4 rounded-full object-cover" />{' '}
             amiralibgi
           </a>
-          <span>and</span>
+          <span className="-ms-1.5">,</span>
           <a
             href="https://x.com/yazdanctx"
             target="_blank"
@@ -207,6 +207,16 @@ export function SettingsSheet({ onClose }: { onClose: () => void }) {
             className="flex items-center gap-1 font-medium text-ink-400 underline decoration-ink-700 underline-offset-2 hover:text-lime-flash hover:decoration-lime-flash/40"
           >
             <img src="/yazdan.jpg" alt="" className="size-4 rounded-full object-cover" /> yazdanctx
+          </a>
+          <span>and</span>
+          <a
+            href="https://github.com/alimohammad0816"
+            target="_blank"
+            rel="noreferrer"
+            className="flex items-center gap-1 font-medium text-ink-400 underline decoration-ink-700 underline-offset-2 hover:text-lime-flash hover:decoration-lime-flash/40"
+          >
+            <img src="/alimohammad.png" alt="" className="size-4 rounded-full object-cover" />{' '}
+            alimohammad0816
           </a>
         </div>
       </div>
