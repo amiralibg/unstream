@@ -238,6 +238,7 @@ const en = {
     newVersion: 'New version available:',
     builtBy: 'Built by',
     and: 'and',
+    listSeparator: ',',
     totalDownloads: 'Total',
     clearCompleted: 'Clear completed',
     revealInFolder: 'Reveal in folder',

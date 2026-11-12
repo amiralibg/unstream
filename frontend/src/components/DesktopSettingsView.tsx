@@ -332,8 +332,14 @@ export function DesktopSettingsView({ focusConnection = false }: { focusConnecti
           <footer className="flex flex-wrap items-center justify-center gap-x-2 gap-y-2 py-4 text-mini text-ink-500 lg:col-span-2">
             <span>{m.desktopNav.builtBy}</span>
             <Credit href="https://x.com/_amiralibgi" image="/amirali.jpg" name="amiralibgi" />
-            <span>{m.desktopNav.and}</span>
+            <span className="-ms-1.5">{m.desktopNav.listSeparator}</span>
             <Credit href="https://x.com/yazdanctx" image="/yazdan.jpg" name="yazdanctx" />
+            <span>{m.desktopNav.and}</span>
+            <Credit
+              href="https://github.com/alimohammad0816"
+              image="/alimohammad.png"
+              name="alimohammad0816"
+            />
           </footer>
         </div>
       </div>
